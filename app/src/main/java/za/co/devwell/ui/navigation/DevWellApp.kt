@@ -170,6 +170,9 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onCreateProject = viewModel::createProject,
                     onUpdateProject = viewModel::updateProject,
                     onDeleteProject = viewModel::deleteProject,
+                    onAddTask = viewModel::addTask,
+                    onUpdateTask = viewModel::updateTask,
+                    onDeleteTask = viewModel::deleteTask,
                 )
             }
             composable(Routes.PRIVACY_PREVIEW) { PrivacyPreviewScreen(aggregate) }
