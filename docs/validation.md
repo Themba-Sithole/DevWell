@@ -24,11 +24,13 @@ DevWellTest Android 16 / API 36 x86_64 emulator at 720 x 1600.
 
 ## Scope and remaining integration
 
-The tests use controlled responses or the isolated student preview. The device session
-tests use Android's real encrypted storage. Live registration, email confirmation,
-join-request submission, RLS and manager approval must still be tested once the backend
-owner deploys the tables and Edge Functions described in the handoff contract.
-No database tables or Edge Functions were created or changed by this app task.
+The Android tests used controlled responses or the isolated student preview. Device
+session tests used real Android encrypted storage. The backend was subsequently deployed
+on 25 September 2026: 10 function tests, SQL assertions and all 28 live API checks passed,
+including concurrent submission, RLS, approval and rejection. The Security Advisor found
+no issues. Temporary accounts and data were removed. See supabase/README.md for details.
+Real email confirmation/public signup and the Android UI with live accounts still need
+manual verification. The actual company/team directory remains intentionally empty.
 
 Other members' dashboards still use sample repositories. This is Member 1's app-side
 implementation, not a claim that the whole team application is connected to live data.
