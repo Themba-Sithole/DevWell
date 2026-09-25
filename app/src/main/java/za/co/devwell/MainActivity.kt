@@ -12,6 +12,7 @@ import za.co.devwell.viewmodel.DevWellViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        za.co.devwell.data.AppContainer.initialize(applicationContext)
         enableEdgeToEdge()
         setContent {
             DevWellTheme {

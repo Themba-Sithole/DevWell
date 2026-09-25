@@ -15,4 +15,8 @@ local.properties
 *.keystore
 key.properties
 *.log
-/README.md
+
+/.test-avd/
+/tmp/
+
+/.build-cache/

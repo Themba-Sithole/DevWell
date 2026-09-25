@@ -15,9 +15,6 @@ import za.co.devwell.model.*
  * (e.g. CheckInViewModel, ProjectsViewModel) without changing AppContainer.
  */
 class DevWellViewModel : ViewModel() {
-    val user: StateFlow<DevWellUser?> = AppContainer.auth.currentUser
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
     val checkIns: StateFlow<List<CheckIn>> = AppContainer.wellbeing.checkIns
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -45,9 +42,7 @@ class DevWellViewModel : ViewModel() {
     val teams: StateFlow<List<Team>> = AppContainer.onboarding.teams
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun loginAs(role: UserRole) = viewModelScope.launch { AppContainer.auth.demoLogin(role) }
 
-    fun signOut() = viewModelScope.launch { AppContainer.auth.signOut() }
 
     fun saveCheckIn(draft: CheckInDraft) = viewModelScope.launch {
         AppContainer.wellbeing.saveCheckIn(draft)
