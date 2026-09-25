@@ -26,7 +26,7 @@ class ReminderWorker(
         }
 
         val notification = NotificationCompat.Builder(applicationContext, DAILY_REMINDER_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // TODO: swap for your app's own icon later
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // change to our logo later
             .setContentTitle("Daily check-in")
             .setContentText("Take a minute for your DevWell check-in.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
