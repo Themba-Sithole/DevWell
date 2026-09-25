@@ -22,8 +22,9 @@ The Gradle wrapper uses 8.14.3; Android Gradle Plugin remains 8.7.3.
 - Company/team selection, join-request submission and approval-status refresh.
 - Debug-only student preview for existing roles and the new-engineer flow.
 
-The backend owner is building the database and Edge Functions separately. Live onboarding
-requires the contract below. Other members' feature repositories still contain sample data;
+The Member 1 database and both join-request Edge Functions are deployed. See
+[supabase/README.md](supabase/README.md) for setup, API calls and verified results.
+The company/team directory is intentionally empty until real names are available. Other members' feature repositories still contain sample data;
 the dashboard identifies that data as sample data.
 
 ## Team notes

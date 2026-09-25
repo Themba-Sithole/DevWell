@@ -22,8 +22,8 @@ The SDK versions are pinned: Supabase Kotlin 3.0.3, Ktor 3.0.2, Kotlin/Compose c
 3. Add SUPABASE_URL and SUPABASE_ANON_KEY to local.properties. Use a publishable key,
    never a service-role/secret key. This file is excluded from Git.
 4. Sync Gradle, choose the app debug configuration and an API 26+ emulator/device.
-5. Run the app. Sign in once the backend below is ready.
-6. While the backend is being built, expand Student preview (debug only). Preview
+5. Run the app. Register, confirm your email if required, and sign in.
+6. To explore without real company/team data, expand Student preview (debug only). Preview
    an existing role or a new engineer. The pending preview can simulate approval
    and rejection. These actions use memory only. Restarting the process ends preview.
 7. Release builds hide preview and also reject preview actions in the ViewModel.
@@ -50,9 +50,11 @@ real manager approval, or mocked manager reviews as database updates.
 
 ## Database contract (backend owner)
 
-No schema or Edge Function changes were applied by this app task. At the initial
-inspection on 23 September 2026 the public schema contained no tables. The following
-is the contract the Android implementation expects; coordinate names before changing it.
+Deployed on 25 September 2026: the four tables below, profile creation/email-sync
+triggers, RLS and both submit-join-request and review-join-request Edge Functions.
+No companies or teams have been seeded because real names are not available yet.
+The original app task left the database untouched; this backend follow-up implemented it.
+See supabase/README.md for deployment and setup instructions.
 All IDs below are UUIDs in production, represented as Kotlin strings.
 
 ### public.user
@@ -134,8 +136,9 @@ sets request.status=approved and user.status=active; reject sets both to rejecte
 Always retain onboarding_done=true and the correct membership IDs. The starter's
 MockManagerRepository does not perform this live operation.
 
-A suggested review-join-request Edge Function may accept request_id and approve; this
-is a recommendation for Member 5, not an endpoint currently called by Member 1.
+The deployed review-join-request Edge Function accepts request_id and boolean approve.
+An active manager assigned to that team in the same company, or an active admin, may
+review it. Member 5 must connect the manager UI to this endpoint; Member 1 does not call it.
 
 ## Access rules and integration notes for the whole team
 
@@ -145,7 +148,7 @@ is a recommendation for Member 5, not an endpoint currently called by Member 1.
 - Signed-in onboarding users can read active companies and their teams. Expose only
   the directory fields needed for selection; the UI is not an access-control boundary.
 - Engineers can read only their own join requests. Managers can access requests only
-  for teams they manage. Do not grant manager access to individual wellbeing records.
+  for teams they manage in their own company; active admins can also review them. Do not grant manager access to individual wellbeing records.
 - Pending/rejected accounts must be blocked by backend policies for all protected
   check-ins, projects and other features, even if someone bypasses the Android UI.
 - Member 2: write check-ins for auth.uid(), after active membership checks.
@@ -185,4 +188,5 @@ reset, Google sign-in and optional manager company registration are not part of 
 - Edge Function authentication: https://supabase.com/docs/guides/functions/auth
 
 See validation.md for the actual checks performed. Backend-dependent checks above are
-not marked passed until the database and functions are deployed and tested together.
+covered by SQL assertions and 28 live HTTP checks where applicable. Real email
+confirmation and the full Android UI with live accounts still need manual verification.

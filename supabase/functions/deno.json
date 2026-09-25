@@ -1,0 +1,8 @@
+{
+  "compilerOptions": { "strict": true },
+  "fmt": { "lineWidth": 110 },
+  "tasks": {
+    "test": "deno test _shared/handler_test.ts",
+    "check": "deno check submit-join-request/index.ts review-join-request/index.ts"
+  }
+}
