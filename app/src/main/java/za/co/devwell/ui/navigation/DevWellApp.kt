@@ -34,6 +34,9 @@ import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.NotificationsScreen
 import za.co.devwell.ui.settings.ProfileScreen
 import za.co.devwell.viewmodel.DevWellViewModel
+//added below
+import androidx.compose.ui.platform.LocalContext
+import za.co.devwell.notifications.NotificationScheduler
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
@@ -178,11 +181,15 @@ fun DevWellApp(viewModel: DevWellViewModel) {
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = viewModel::signOut,
                 )
-            }
+            } // added notification scheduler
             composable(Routes.NOTIFICATIONS) {
+                val context = LocalContext.current
                 NotificationsScreen(
                     prefs = notificationPrefs,
-                    onSave = viewModel::updateNotificationPrefs,
+                    onSave = { prefs ->
+                        viewModel.updateNotificationPrefs(prefs)
+                        NotificationScheduler.applyPreferences(context, prefs)
+                    },
                 )
             }
 
