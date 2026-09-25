@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import za.co.devwell.data.projects.isValidDeadline
 import za.co.devwell.model.DevProject
 import za.co.devwell.model.ProjectTask
 import za.co.devwell.model.SmartTip
@@ -695,6 +696,12 @@ private fun ProjectFormDialog(
                     onValueChange = { deadline = it },
                     label = { Text("Deadline") },
                     placeholder = { Text("e.g. 18 Sep") },
+                    supportingText = {
+                        if (deadline.isNotBlank() && !isValidDeadline(deadline)) {
+                            Text("Use yyyy-MM-dd, d MMM, or d MMM yyyy")
+                        }
+                    },
+                    isError = deadline.isNotBlank() && !isValidDeadline(deadline),
                     singleLine = true,
                 )
                 ColourPicker(colour, onSelect = { colour = it })
@@ -712,7 +719,7 @@ private fun ProjectFormDialog(
                         )
                     )
                 },
-                enabled = name.isNotBlank() && deadline.isNotBlank(),
+                enabled = name.isNotBlank() && isValidDeadline(deadline),
             ) { Text(confirmLabel) }
         },
         dismissButton = {
@@ -790,6 +797,12 @@ private fun TaskFormDialog(
                     onValueChange = { deadline = it },
                     label = { Text("Deadline") },
                     placeholder = { Text("e.g. 18 Sep") },
+                    supportingText = {
+                        if (deadline.isNotBlank() && !isValidDeadline(deadline)) {
+                            Text("Use yyyy-MM-dd, d MMM, or d MMM yyyy")
+                        }
+                    },
+                    isError = deadline.isNotBlank() && !isValidDeadline(deadline),
                     singleLine = true,
                 )
                 Text(
@@ -839,7 +852,7 @@ private fun TaskFormDialog(
                         )
                     )
                 },
-                enabled = taskTitle.isNotBlank() && deadline.isNotBlank(),
+                enabled = taskTitle.isNotBlank() && isValidDeadline(deadline),
             ) { Text(confirmLabel) }
         },
         dismissButton = {

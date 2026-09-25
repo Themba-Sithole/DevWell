@@ -319,22 +319,30 @@ class MockAdminRepository : AdminRepository {
     override val stats: Flow<Map<String, Int>> = statsState
 }
 
-/** Single composition root. Swap Mock* → Supabase* here when the backend is ready. */
 object AppContainer {
     private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
+    private var projectRepository: ProjectRepository = MockProjectRepository()
+
     fun initialize(context: android.content.Context) {
         if (!::identity.isInitialized) {
-            identity = za.co.devwell.data.auth.SupabaseIdentityRepository(
-                za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext),
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main),
+            val scope = kotlinx.coroutines.CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main,
             )
+            val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
+            identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
+            projectRepository = if (client == null) {
+                MockProjectRepository()
+            } else {
+                za.co.devwell.data.projects.SupabaseProjectRepository(client, scope)
+            }
         }
     }
+
     val auth: AuthRepository get() = identity
     val onboarding: OnboardingRepository get() = identity
     val wellbeing: WellbeingRepository = MockWellbeingRepository()
     val teamInsights: TeamInsightsRepository = MockTeamInsightsRepository()
-    val projects: ProjectRepository = MockProjectRepository()
+    val projects: ProjectRepository get() = projectRepository
     val manager: ManagerRepository = MockManagerRepository()
     val notifications: NotificationRepository = MockNotificationRepository()
     val ai: AiGuidanceRepository = MockAiGuidanceRepository()
