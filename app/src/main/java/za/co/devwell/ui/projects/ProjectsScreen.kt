@@ -38,6 +38,7 @@ import za.co.devwell.model.ProjectTask
 import za.co.devwell.model.SmartTip
 import za.co.devwell.model.SmartTipsEngine
 import za.co.devwell.model.TaskPriority
+import za.co.devwell.model.TaskStatus
 import za.co.devwell.ui.theme.Forest
 
 private val ProjectColours = listOf(
@@ -54,6 +55,15 @@ private val BlankProject = DevProject(
     tasks = emptyList(),
 )
 
+private val BlankTask = ProjectTask(
+    id = "",
+    title = "",
+    deadline = "",
+    priority = TaskPriority.MEDIUM,
+    note = "",
+    status = TaskStatus.OPEN,
+)
+
 @Composable
 fun ProjectsScreen(
     projects: List<DevProject>,
@@ -61,6 +71,9 @@ fun ProjectsScreen(
     onCreateProject: (DevProject) -> Unit = {},
     onUpdateProject: (DevProject) -> Unit = {},
     onDeleteProject: (String) -> Unit = {},
+    onAddTask: (String, ProjectTask) -> Unit = { _, _ -> },
+    onUpdateTask: (String, ProjectTask) -> Unit = { _, _ -> },
+    onDeleteTask: (String, String) -> Unit = { _, _ -> },
 ) {
     var filter by remember { mutableStateOf("All") }
     val tips = remember(projects) { SmartTipsEngine.generate(projects) }
@@ -75,6 +88,9 @@ fun ProjectsScreen(
     var showCreate by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<DevProject?>(null) }
     var deleting by remember { mutableStateOf<DevProject?>(null) }
+    var taskProjectId by remember { mutableStateOf<String?>(null) }
+    var editingTask by remember { mutableStateOf<Pair<DevProject, ProjectTask>?>(null) }
+    var deletingTask by remember { mutableStateOf<Pair<DevProject, ProjectTask>?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -103,6 +119,9 @@ fun ProjectsScreen(
                         onToggle = onToggle,
                         onEdit = { editing = project },
                         onDelete = { deleting = project },
+                        onAddTask = { taskProjectId = project.id },
+                        onEditTask = { task -> editingTask = project to task },
+                        onDeleteTask = { task -> deletingTask = project to task },
                     )
                 }
             }
@@ -152,6 +171,44 @@ fun ProjectsScreen(
                 deleting = null
             },
             onDismiss = { deleting = null },
+        )
+    }
+    taskProjectId?.let { projectId ->
+        projects.firstOrNull { it.id == projectId }?.let { project ->
+            TaskFormDialog(
+                title = "New task",
+                project = project,
+                initial = BlankTask,
+                confirmLabel = "Add",
+                onConfirm = {
+                    onAddTask(project.id, it)
+                    taskProjectId = null
+                },
+                onDismiss = { taskProjectId = null },
+            )
+        }
+    }
+    editingTask?.let { (project, task) ->
+        TaskFormDialog(
+            title = "Edit task",
+            project = project,
+            initial = task,
+            confirmLabel = "Save",
+            onConfirm = {
+                onUpdateTask(project.id, it)
+                editingTask = null
+            },
+            onDismiss = { editingTask = null },
+        )
+    }
+    deletingTask?.let { (project, task) ->
+        DeleteTaskDialog(
+            task = task,
+            onConfirm = {
+                onDeleteTask(project.id, task.id)
+                deletingTask = null
+            },
+            onDismiss = { deletingTask = null },
         )
     }
 }
@@ -267,6 +324,9 @@ private fun ProjectCard(
     onToggle: (projectId: String, taskId: String) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onAddTask: () -> Unit,
+    onEditTask: (ProjectTask) -> Unit,
+    onDeleteTask: (ProjectTask) -> Unit,
 ) {
     val accent = projectAccent(project.colour)
     val doneCount = project.tasks.count { it.isDone }
@@ -339,16 +399,22 @@ private fun ProjectCard(
 
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         "TASKS",
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    TextButton(onClick = onAddTask) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add task")
+                    }
                     Box(
                         Modifier
                             .background(
@@ -377,7 +443,13 @@ private fun ProjectCard(
                 }
 
                 tasks.forEachIndexed { index, task ->
-                    TaskRow(task, accent) { onToggle(project.id, task.id) }
+                    TaskRow(
+                        task = task,
+                        accent = accent,
+                        onToggle = { onToggle(project.id, task.id) },
+                        onEdit = { onEditTask(task) },
+                        onDelete = { onDeleteTask(task) },
+                    )
                     if (index != tasks.lastIndex) {
                         HorizontalDivider(
                             Modifier.padding(start = 46.dp),
@@ -460,13 +532,19 @@ private fun MetaLabel(icon: ImageVector, text: String) {
 }
 
 @Composable
-private fun TaskRow(task: ProjectTask, accent: Color, onToggle: () -> Unit) {
+private fun TaskRow(
+    task: ProjectTask,
+    accent: Color,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onToggle)
-            .padding(vertical = 8.dp, horizontal = 2.dp),
+            .padding(vertical = 4.dp, horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(
@@ -478,7 +556,12 @@ private fun TaskRow(task: ProjectTask, accent: Color, onToggle: () -> Unit) {
             ),
         )
         Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
+        Column(
+            Modifier
+                .weight(1f)
+                .clickable(onClick = onToggle)
+                .padding(vertical = 6.dp),
+        ) {
             Text(
                 task.title,
                 fontWeight = FontWeight.Medium,
@@ -498,6 +581,62 @@ private fun TaskRow(task: ProjectTask, accent: Color, onToggle: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (task.note.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    task.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        TaskMenu(
+            expanded = menuOpen,
+            onExpandedChange = { menuOpen = it },
+            onEdit = {
+                menuOpen = false
+                onEdit()
+            },
+            onDelete = {
+                menuOpen = false
+                onDelete()
+            },
+        )
+    }
+}
+
+@Composable
+private fun TaskMenu(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Box {
+        IconButton(onClick = { onExpandedChange(true) }) {
+            Icon(
+                Icons.Outlined.MoreVert,
+                contentDescription = "Task options",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+            DropdownMenuItem(
+                text = { Text("Edit task") },
+                onClick = onEdit,
+                leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+            )
+            DropdownMenuItem(
+                text = { Text("Delete task") },
+                onClick = onDelete,
+                leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                colors = MenuDefaults.itemColors(
+                    textColor = MaterialTheme.colorScheme.error,
+                    leadingIconColor = MaterialTheme.colorScheme.error,
+                ),
+            )
         }
     }
 }
@@ -618,6 +757,116 @@ private fun ColourPicker(selected: String, onSelect: (String) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun TaskFormDialog(
+    title: String,
+    project: DevProject,
+    initial: ProjectTask,
+    confirmLabel: String,
+    onConfirm: (ProjectTask) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var taskTitle by remember(initial) { mutableStateOf(initial.title) }
+    var deadline by remember(initial) { mutableStateOf(initial.deadline) }
+    var priority by remember(initial) { mutableStateOf(initial.priority) }
+    var note by remember(initial) { mutableStateOf(initial.note) }
+    var status by remember(initial) { mutableStateOf(initial.status) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("$title in ${project.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = taskTitle,
+                    onValueChange = { taskTitle = it },
+                    label = { Text("Task title") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = deadline,
+                    onValueChange = { deadline = it },
+                    label = { Text("Deadline") },
+                    placeholder = { Text("e.g. 18 Sep") },
+                    singleLine = true,
+                )
+                Text(
+                    "Priority",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TaskPriority.entries.forEach { option ->
+                        FilterChip(
+                            selected = priority == option,
+                            onClick = { priority = option },
+                            label = { Text(option.name) },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Note") },
+                    minLines = 2,
+                    maxLines = 3,
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Completed", style = MaterialTheme.typography.labelLarge)
+                    Switch(
+                        checked = status == TaskStatus.DONE,
+                        onCheckedChange = { status = if (it) TaskStatus.DONE else TaskStatus.OPEN },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(
+                        initial.copy(
+                            title = taskTitle.trim(),
+                            deadline = deadline.trim(),
+                            priority = priority,
+                            note = note.trim(),
+                            status = status,
+                        )
+                    )
+                },
+                enabled = taskTitle.isNotBlank() && deadline.isNotBlank(),
+            ) { Text(confirmLabel) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun DeleteTaskDialog(
+    task: ProjectTask,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete task?") },
+        text = { Text("\"${task.title}\" will be permanently removed.") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
