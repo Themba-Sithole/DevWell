@@ -1,11 +1,7 @@
 package za.co.devwell.model
 
 import java.time.LocalDate
-import java.time.MonthDay
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.Locale
-import kotlin.math.abs
 
 /**
  * FR13 / Story 8 — rule-based tips only (max 3).
@@ -58,22 +54,10 @@ object SmartTipsEngine {
 
     private fun daysUntil(deadlineLabel: String, today: LocalDate): Long {
         return try {
-            val parsed = parseDeadline(deadlineLabel, today)
+            val parsed = ProjectDeadlineParser.parse(deadlineLabel, today)
             ChronoUnit.DAYS.between(today, parsed)
         } catch (_: Exception) {
             Long.MAX_VALUE
         }
-    }
-
-    private fun parseDeadline(deadlineLabel: String, today: LocalDate): LocalDate {
-        val trimmed = deadlineLabel.trim()
-        if (trimmed.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
-            return LocalDate.parse(trimmed, DateTimeFormatter.ISO_LOCAL_DATE)
-        }
-        val monthDay = MonthDay.parse(trimmed, DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))
-        if (today.month == java.time.Month.DECEMBER && monthDay.month == java.time.Month.JANUARY) {
-            return LocalDate.of(today.year + 1, monthDay.month, monthDay.dayOfMonth)
-        }
-        return LocalDate.of(today.year, monthDay.month, monthDay.dayOfMonth)
     }
 }
