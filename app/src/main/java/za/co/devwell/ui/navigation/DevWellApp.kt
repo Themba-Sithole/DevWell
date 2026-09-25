@@ -164,7 +164,13 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             }
             composable(Routes.TRENDS) { TrendsScreen(checkIns) }
             composable(Routes.PROJECTS) {
-                ProjectsScreen(projects, viewModel::toggleTask)
+                ProjectsScreen(
+                    projects = projects,
+                    onToggle = viewModel::toggleTask,
+                    onCreateProject = viewModel::createProject,
+                    onUpdateProject = viewModel::updateProject,
+                    onDeleteProject = viewModel::deleteProject,
+                )
             }
             composable(Routes.PRIVACY_PREVIEW) { PrivacyPreviewScreen(aggregate) }
             composable(Routes.AI_ASSISTANT) {

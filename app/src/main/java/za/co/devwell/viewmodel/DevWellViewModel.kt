@@ -52,6 +52,30 @@ class DevWellViewModel : ViewModel() {
         AppContainer.projects.toggleTask(projectId, taskId)
     }
 
+    fun createProject(project: DevProject) = viewModelScope.launch {
+        AppContainer.projects.createProject(project)
+    }
+
+    fun updateProject(project: DevProject) = viewModelScope.launch {
+        AppContainer.projects.updateProject(project)
+    }
+
+    fun deleteProject(projectId: String) = viewModelScope.launch {
+        AppContainer.projects.deleteProject(projectId)
+    }
+
+    fun addTask(projectId: String, task: ProjectTask) = viewModelScope.launch {
+        AppContainer.projects.addTask(projectId, task)
+    }
+
+    fun updateTask(projectId: String, task: ProjectTask) = viewModelScope.launch {
+        AppContainer.projects.updateTask(projectId, task)
+    }
+
+    fun deleteTask(projectId: String, taskId: String) = viewModelScope.launch {
+        AppContainer.projects.deleteTask(projectId, taskId)
+    }
+
     fun reviewJoinRequest(requestId: String, approve: Boolean) = viewModelScope.launch {
         AppContainer.manager.reviewJoinRequest(requestId, approve)
     }

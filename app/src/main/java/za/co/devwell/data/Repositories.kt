@@ -38,8 +38,13 @@ interface TeamInsightsRepository {
 
 interface ProjectRepository {
     val projects: Flow<List<DevProject>>
-    suspend fun toggleTask(projectId: String, taskId: String)
+    suspend fun createProject(project: DevProject)
+    suspend fun updateProject(project: DevProject)
+    suspend fun deleteProject(projectId: String)
     suspend fun addTask(projectId: String, task: ProjectTask)
+    suspend fun updateTask(projectId: String, task: ProjectTask)
+    suspend fun deleteTask(projectId: String, taskId: String)
+    suspend fun toggleTask(projectId: String, taskId: String)
 }
 
 interface ManagerRepository {
@@ -172,7 +177,7 @@ class MockProjectRepository : ProjectRepository {
                 name = "DevWell Android App",
                 description = "Native Kotlin client",
                 deadline = "18 Sep",
-                progress = 45,
+                progress = 33,
                 tasks = listOf(
                     ProjectTask("t1", "Complete navigation skeleton", "5 Sep", TaskPriority.HIGH, status = TaskStatus.DONE),
                     ProjectTask("t2", "Connect Supabase authentication", "10 Sep", TaskPriority.HIGH),
@@ -183,7 +188,7 @@ class MockProjectRepository : ProjectRepository {
                 id = "p2",
                 name = "Research Report",
                 deadline = "25 Sep",
-                progress = 70,
+                progress = 0,
                 tasks = listOf(
                     ProjectTask("t4", "Review references", "12 Sep", TaskPriority.MEDIUM),
                 ),
@@ -192,30 +197,74 @@ class MockProjectRepository : ProjectRepository {
     )
     override val projects: Flow<List<DevProject>> = items
 
+    override suspend fun createProject(project: DevProject) {
+        val saved = if (project.id.isBlank()) {
+            project.copy(id = nextId("p", items.value.map { it.id }))
+        } else project
+        items.value = items.value + recalculateProgress(saved)
+    }
+
+    override suspend fun updateProject(project: DevProject) {
+        items.value = items.value.map { current ->
+            if (current.id != project.id) current
+            else recalculateProgress(project)
+        }
+    }
+
+    override suspend fun deleteProject(projectId: String) {
+        items.value = items.value.filterNot { it.id == projectId }
+    }
+
+    override suspend fun addTask(projectId: String, task: ProjectTask) {
+        items.value = items.value.map { project ->
+            if (project.id != projectId) project
+            else {
+                val saved = if (task.id.isBlank()) {
+                    task.copy(id = nextId("t", items.value.flatMap { it.tasks }.map { it.id }))
+                } else task
+                recalculateProgress(project.copy(tasks = project.tasks + saved))
+            }
+        }
+    }
+
+    override suspend fun updateTask(projectId: String, task: ProjectTask) {
+        items.value = items.value.map { project ->
+            if (project.id != projectId) project
+            else recalculateProgress(
+                project.copy(tasks = project.tasks.map { if (it.id == task.id) task else it })
+            )
+        }
+    }
+
+    override suspend fun deleteTask(projectId: String, taskId: String) {
+        items.value = items.value.map { project ->
+            if (project.id != projectId) project
+            else recalculateProgress(project.copy(tasks = project.tasks.filterNot { it.id == taskId }))
+        }
+    }
+
     override suspend fun toggleTask(projectId: String, taskId: String) {
         items.value = items.value.map { project ->
             if (project.id != projectId) project
             else {
                 val tasks = project.tasks.map { task ->
                     if (task.id != taskId) task
-                    else task.copy(
-                        status = if (task.isDone) TaskStatus.OPEN else TaskStatus.DONE
-                    )
+                    else task.copy(status = if (task.isDone) TaskStatus.OPEN else TaskStatus.DONE)
                 }
-                val done = tasks.count { it.isDone }
-                project.copy(
-                    tasks = tasks,
-                    progress = if (tasks.isEmpty()) 0 else (done * 100) / tasks.size,
-                )
+                recalculateProgress(project.copy(tasks = tasks))
             }
         }
     }
 
-    override suspend fun addTask(projectId: String, task: ProjectTask) {
-        items.value = items.value.map { project ->
-            if (project.id != projectId) project
-            else project.copy(tasks = project.tasks + task)
-        }
+    private fun recalculateProgress(project: DevProject): DevProject {
+        val done = project.tasks.count { it.isDone }
+        val progress = if (project.tasks.isEmpty()) 0 else (done * 100) / project.tasks.size
+        return project.copy(progress = progress)
+    }
+
+    private fun nextId(prefix: String, existing: List<String>): String {
+        val max = existing.mapNotNull { it.removePrefix(prefix).toIntOrNull() }.maxOrNull() ?: 0
+        return "$prefix${max + 1}"
     }
 }
 
