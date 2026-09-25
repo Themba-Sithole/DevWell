@@ -1,6 +1,7 @@
 package za.co.devwell.ui.navigation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Checklist
@@ -17,7 +18,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import za.co.devwell.model.UserRole
+import za.co.devwell.model.*
+import za.co.devwell.viewmodel.AuthViewModel
 import za.co.devwell.ui.admin.AdminHomeScreen
 import za.co.devwell.ui.auth.LoginScreen
 import za.co.devwell.ui.auth.OnboardingScreen
@@ -38,8 +40,35 @@ import za.co.devwell.viewmodel.DevWellViewModel
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
 @Composable
-fun DevWellApp(viewModel: DevWellViewModel) {
-    val user by viewModel.user.collectAsStateWithLifecycle()
+fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
+    val state by authViewModel.ui.collectAsStateWithLifecycle()
+    val destination = entryDestination(state.user)
+    LaunchedEffect(state.user?.id, destination) {
+        if (destination == EntryDestination.ONBOARDING) authViewModel.refreshDirectory()
+    }
+    if (state.starting) {
+        Column(Modifier.fillMaxSize().systemBarsPadding().padding(28.dp), verticalArrangement = Arrangement.Center) {
+            Text("Opening DevWell...")
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+        return
+    }
+    // Auth screens are outside the protected graph. Back cannot reopen a previous session.
+    when (destination) {
+        EntryDestination.LOGIN -> LoginScreen(state, authViewModel::signIn, authViewModel::signUp,
+            authViewModel::clearFeedback, authViewModel::startPreview)
+        EntryDestination.ONBOARDING -> OnboardingScreen(state, authViewModel::submitJoinRequest,
+            authViewModel::refreshDirectory, authViewModel::refreshProfile, authViewModel::signOut)
+        EntryDestination.PENDING -> PendingApprovalScreen(state, authViewModel::refreshProfile,
+            authViewModel::signOut, authViewModel::previewReview)
+        else -> key(state.user!!.id, state.user!!.role, state.preview) {
+            RoleApp(viewModel, state.user!!, authViewModel::signOut, state.preview)
+        }
+    }
+}
+@Composable
+private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: () -> Unit, preview: Boolean) {
+
     val checkIns by viewModel.checkIns.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val aggregate by viewModel.teamAggregate.collectAsStateWithLifecycle()
@@ -52,28 +81,6 @@ fun DevWellApp(viewModel: DevWellViewModel) {
 
     val navController = rememberNavController()
 
-    // Reset to role home whenever the signed-in user changes.
-    LaunchedEffect(user?.id, user?.role) {
-        when (user?.role) {
-            null -> navController.navigate(Routes.LOGIN) {
-                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
-                launchSingleTop = true
-            }
-            UserRole.ENGINEER -> navController.navigate(Routes.ENGINEER_HOME) {
-                popUpTo(0) { inclusive = true }
-                launchSingleTop = true
-            }
-            UserRole.MANAGER -> navController.navigate(Routes.MANAGER_HOME) {
-                popUpTo(0) { inclusive = true }
-                launchSingleTop = true
-            }
-            UserRole.ADMIN -> navController.navigate(Routes.ADMIN_HOME) {
-                popUpTo(0) { inclusive = true }
-                launchSingleTop = true
-            }
-        }
-    }
-
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBottomBar = currentRoute in setOf(
@@ -82,7 +89,7 @@ fun DevWellApp(viewModel: DevWellViewModel) {
         Routes.ADMIN_HOME, Routes.ADMIN_PROFILE,
     )
 
-    val tabs = when (user?.role) {
+    val tabs = when (user.role) {
         UserRole.ENGINEER -> listOf(
             TabItem(Routes.ENGINEER_HOME, "Home", Icons.Outlined.Home),
             TabItem(Routes.TRENDS, "Trends", Icons.AutoMirrored.Outlined.ShowChart),
@@ -97,10 +104,13 @@ fun DevWellApp(viewModel: DevWellViewModel) {
             TabItem(Routes.ADMIN_HOME, "Admin", Icons.Outlined.Dashboard),
             TabItem(Routes.ADMIN_PROFILE, "Profile", Icons.Outlined.Person),
         )
-        null -> emptyList()
     }
 
     Scaffold(
+        topBar = {
+            Text(if (preview) "Student preview - sample data" else "Student prototype - sample dashboard data",
+                modifier = Modifier.statusBarsPadding().padding(8.dp), style = MaterialTheme.typography.labelSmall)
+        },
         bottomBar = {
             if (showBottomBar && tabs.isNotEmpty()) {
                 NavigationBar {
@@ -124,30 +134,18 @@ fun DevWellApp(viewModel: DevWellViewModel) {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Routes.LOGIN,
+            startDestination = when (user.role) {
+                UserRole.ENGINEER -> Routes.ENGINEER_HOME
+                UserRole.MANAGER -> Routes.MANAGER_HOME
+                UserRole.ADMIN -> Routes.ADMIN_HOME
+            },
             modifier = Modifier.padding(padding),
         ) {
-            composable(Routes.LOGIN) {
-                LoginScreen(onLogin = viewModel::loginAs)
-            }
-            composable(Routes.ONBOARDING) {
-                OnboardingScreen(
-                    companies = companies,
-                    teams = teams,
-                    onSubmit = { companyId, teamId ->
-                        viewModel.submitJoinRequest(companyId, teamId)
-                        navController.navigate(Routes.PENDING)
-                    },
-                )
-            }
-            composable(Routes.PENDING) {
-                PendingApprovalScreen(onBackToLogin = viewModel::signOut)
-            }
-
+            if (user.role == UserRole.ENGINEER) {
             // Engineer
             composable(Routes.ENGINEER_HOME) {
                 EngineerHomeScreen(
-                    name = user?.name.orEmpty(),
+                    name = user.name,
                     onCheckIn = { navController.navigate(Routes.CHECK_IN) },
                     onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
                     onAiAssistant = { navController.navigate(Routes.AI_ASSISTANT) },
@@ -176,16 +174,11 @@ fun DevWellApp(viewModel: DevWellViewModel) {
                 ProfileScreen(
                     role = UserRole.ENGINEER,
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                    onSignOut = viewModel::signOut,
+                    onSignOut = onSignOut,
                 )
             }
-            composable(Routes.NOTIFICATIONS) {
-                NotificationsScreen(
-                    prefs = notificationPrefs,
-                    onSave = viewModel::updateNotificationPrefs,
-                )
             }
-
+            if (user.role == UserRole.MANAGER) {
             // Manager
             composable(Routes.MANAGER_HOME) {
                 ManagerHomeScreen(
@@ -204,19 +197,29 @@ fun DevWellApp(viewModel: DevWellViewModel) {
                 ProfileScreen(
                     role = UserRole.MANAGER,
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                    onSignOut = viewModel::signOut,
+                    onSignOut = onSignOut,
                 )
             }
 
+            }
+            if (user.role == UserRole.ADMIN) {
             // Admin
             composable(Routes.ADMIN_HOME) { AdminHomeScreen(adminStats) }
             composable(Routes.ADMIN_PROFILE) {
                 ProfileScreen(
                     role = UserRole.ADMIN,
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                    onSignOut = viewModel::signOut,
+                    onSignOut = onSignOut,
                 )
             }
+            }
+            composable(Routes.NOTIFICATIONS) {
+                NotificationsScreen(
+                    prefs = notificationPrefs,
+                    onSave = viewModel::updateNotificationPrefs,
+                )
+            }
+
         }
     }
 }

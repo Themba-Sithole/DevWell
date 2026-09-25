@@ -11,6 +11,9 @@ import za.co.devwell.model.*
 
 interface AuthRepository {
     val currentUser: Flow<DevWellUser?>
+    suspend fun restoreSession() {}
+    suspend fun refreshProfile() {}
+    suspend fun signUp(name: String, email: String, password: String): String = error("Registration is unavailable")
     suspend fun demoLogin(role: UserRole)
     suspend fun signIn(email: String, password: String): Result<DevWellUser>
     suspend fun signOut()
@@ -19,10 +22,10 @@ interface AuthRepository {
 interface OnboardingRepository {
     val companies: Flow<List<Company>>
     val teams: Flow<List<Team>>
+    suspend fun refreshDirectory() {}
     suspend fun submitEngineerJoinRequest(companyId: String, teamId: String)
     suspend fun registerCompany(name: String, emailDomain: String?): Company
 }
-
 interface WellbeingRepository {
     val checkIns: Flow<List<CheckIn>>
     suspend fun saveCheckIn(draft: CheckInDraft)
@@ -269,8 +272,17 @@ class MockAdminRepository : AdminRepository {
 
 /** Single composition root. Swap Mock* → Supabase* here when the backend is ready. */
 object AppContainer {
-    val auth: AuthRepository = MockAuthRepository()
-    val onboarding: OnboardingRepository = MockOnboardingRepository()
+    private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
+    fun initialize(context: android.content.Context) {
+        if (!::identity.isInitialized) {
+            identity = za.co.devwell.data.auth.SupabaseIdentityRepository(
+                za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext),
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main),
+            )
+        }
+    }
+    val auth: AuthRepository get() = identity
+    val onboarding: OnboardingRepository get() = identity
     val wellbeing: WellbeingRepository = MockWellbeingRepository()
     val teamInsights: TeamInsightsRepository = MockTeamInsightsRepository()
     val projects: ProjectRepository = MockProjectRepository()
