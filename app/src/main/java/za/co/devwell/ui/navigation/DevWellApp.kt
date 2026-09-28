@@ -36,6 +36,12 @@ import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.NotificationsScreen
 import za.co.devwell.ui.settings.ProfileScreen
 import za.co.devwell.viewmodel.DevWellViewModel
+import za.co.devwell.data.AppContainer
+import za.co.devwell.data.MockManagerRepository
+import za.co.devwell.ui.manager.JoinRequestsRoute
+import za.co.devwell.ui.manager.TeamSettingsRoute
+import za.co.devwell.viewmodel.ManagerViewModel
+import za.co.devwell.viewmodel.ManagerViewModelFactory
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
@@ -80,6 +86,16 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     val teams by viewModel.teams.collectAsStateWithLifecycle()
 
     val navController = rememberNavController()
+    // Managers get their own ViewModel, recreated per signed-in user and per preview mode.
+    val managerViewModel: ManagerViewModel? = if (user.role == UserRole.MANAGER) {
+        val managerRepository = remember(preview) {
+            if (preview) MockManagerRepository() else AppContainer.manager
+        }
+        androidx.lifecycle.viewmodel.compose.viewModel<ManagerViewModel>(
+            key = "manager-${user.id}-$preview",
+            factory = ManagerViewModelFactory(managerRepository),
+        )
+    } else null
 
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
@@ -196,12 +212,9 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
                 )
             }
-            composable(Routes.JOIN_REQUESTS) {
-                JoinRequestsScreen(joinRequests, viewModel::reviewJoinRequest)
-            }
-            composable(Routes.TEAM_SETTINGS) {
-                TeamSettingsScreen(managedTeam, viewModel::updateTeamSettings)
-            }
+                composable(Routes.JOIN_REQUESTS) { managerViewModel?.let { JoinRequestsRoute(it) } }
+                composable(Routes.TEAM_SETTINGS) { managerViewModel?.let { TeamSettingsRoute(it) } }
+
             composable(Routes.MANAGER_PROFILE) {
                 ProfileScreen(
                     role = UserRole.MANAGER,
