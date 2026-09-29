@@ -50,6 +50,7 @@ fun DevWellApp(viewModel: DevWellViewModel) {
     val managedTeam by viewModel.managedTeam.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
     val adminStats by viewModel.adminStats.collectAsStateWithLifecycle()
+    val adminUsers by viewModel.adminUsers.collectAsState()
     val companies by viewModel.companies.collectAsStateWithLifecycle()
     val teams by viewModel.teams.collectAsStateWithLifecycle()
 
@@ -216,7 +217,13 @@ fun DevWellApp(viewModel: DevWellViewModel) {
             }
 
             // Admin
-            composable(Routes.ADMIN_HOME) { AdminHomeScreen(adminStats) }
+            composable(Routes.ADMIN_HOME) {
+                AdminHomeScreen(
+                    stats = adminStats,
+                    users = adminUsers,
+                    onSetUserStatus = viewModel::setUserStatus,
+                )
+            }
             composable(Routes.ADMIN_PROFILE) {
                 ProfileScreen(
                     role = UserRole.ADMIN,

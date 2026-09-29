@@ -57,6 +57,9 @@ interface AiGuidanceRepository {
 
 interface AdminRepository {
     val stats: Flow<Map<String, Int>>
+    //added here
+    val users: Flow<List<DevWellUser>>
+    suspend fun setUserStatus(userId: String, active: Boolean)
 }
 
 /* --------------------------------------------------------------------------
@@ -265,9 +268,27 @@ class MockAdminRepository : AdminRepository {
         mapOf("Users" to 42, "Companies" to 4, "Teams" to 9, "Pending requests" to 6)
     )
     override val stats: Flow<Map<String, Int>> = statsState
+    //added here
+    private val usersState = MutableStateFlow(
+        listOf(
+            DevWellUser("u1", "zuh", "zuh@devwell.io", UserRole.ENGINEER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
+            DevWellUser("u2", "themb", "themb@devwell.io", UserRole.MANAGER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
+            DevWellUser("u3", "taash", "taash@devwell.io", UserRole.ADMIN),
+            DevWellUser("u4", "dan", "dan@devwell.io", UserRole.ENGINEER, companyId = "c1", status = AccountStatus.PENDING),
+        )
+    )
+    override val users: Flow<List<DevWellUser>> = usersState
+
+    override suspend fun setUserStatus(userId: String, active: Boolean) {
+        usersState.value = usersState.value.map {
+            if (it.id == userId) it.copy(status = if (active) AccountStatus.ACTIVE else AccountStatus.REJECTED)
+            else it
+        }
+    }
 }
 
-/** Single composition root. Swap Mock* → Supabase* here when the backend is ready. */
+
+/** Swap Mock to Supabase  */
 object AppContainer {
     val auth: AuthRepository = MockAuthRepository()
     val onboarding: OnboardingRepository = MockOnboardingRepository()

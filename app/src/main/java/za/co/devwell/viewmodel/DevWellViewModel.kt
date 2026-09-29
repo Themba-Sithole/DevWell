@@ -39,6 +39,14 @@ class DevWellViewModel : ViewModel() {
     val adminStats: StateFlow<Map<String, Int>> = AppContainer.admin.stats
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    //added here
+    val adminUsers: StateFlow<List<DevWellUser>> = AppContainer.admin.users
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setUserStatus(userId: String, active: Boolean) = viewModelScope.launch {
+        AppContainer.admin.setUserStatus(userId, active)
+    }
+
     val companies: StateFlow<List<Company>> = AppContainer.onboarding.companies
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
