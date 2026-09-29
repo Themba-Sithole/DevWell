@@ -3,6 +3,7 @@ package za.co.devwell.data.manager
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -16,6 +17,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import za.co.devwell.data.ManagerRepository
 import za.co.devwell.model.*
@@ -81,16 +84,35 @@ class SupabaseManagerRepository(
 
     override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) = lock.withLock {
         // The server verifies the JWT and the manager's team, then updates request + profile in one transaction.
-        val response = connection().functions.invoke("review-join-request", body = buildJsonObject {
-            put("request_id", requestId)
-            put("approve", approve)
-        })
+        val response = try {
+            connection().functions.invoke("review-join-request", body = buildJsonObject {
+                put("request_id", requestId)
+                put("approve", approve)
+            })
+        } catch (error: RestException) {
+            throw readableReviewError(error) ?: error
+        }
         val result = json.decodeFromString<ReviewJoinRequestResult>(response.bodyAsText())
         val expected = if (approve) "approved" else "rejected"
         check(result.requestId == requestId && result.status == expected) {
             "The review could not be confirmed. Refresh and try again."
         }
-        load()
+        try {
+            load()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The review is already saved; a failed reload only leaves the list stale until the next load.
+        }
+    }
+
+    // SDK 3.0.3 puts the raw response body in RestException.error. The function's 403/409 messages are written for users.
+    private fun readableReviewError(error: RestException): IllegalStateException? {
+        if (error.statusCode != 403 && error.statusCode != 409) return null
+        val message = runCatching {
+            json.parseToJsonElement(error.error).jsonObject["error"]?.jsonPrimitive?.content
+        }.getOrNull()
+        return if (message.isNullOrBlank()) null else IllegalStateException(message, error)
     }
 
     override suspend fun updateTeamSettings(team: Team) =

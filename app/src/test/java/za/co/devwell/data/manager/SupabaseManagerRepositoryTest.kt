@@ -101,8 +101,7 @@ class SupabaseManagerRepositoryTest {
         } finally { client.close() }
     }
 
-    /** Records how SDK 3.0.3 surfaces an Edge Function 409 and what the manager would see. */
-    @Test fun conflictSurfacesAsRestExceptionWithRawBody() = runTest {
+    @Test fun conflictShowsTheServerMessage() = runTest {
         val conflict = """{"error":"This request has already been reviewed."}"""
         val client = client(MockEngine { request ->
             if (request.url.encodedPath == "/functions/v1/review-join-request") {
@@ -113,13 +112,9 @@ class SupabaseManagerRepositoryTest {
             val repo = SupabaseManagerRepository(client, backgroundScope)
             signIn(client)
             val error = runCatching { repo.reviewJoinRequest("r2", approve = true) }.exceptionOrNull()
-            assertTrue("Expected RestException but got $error", error is RestException)
-            assertEquals(conflict, (error as RestException).error)
-            // Current behaviour: the server's readable message is lost behind the generic text.
-            assertEquals(
-                "The request could not be completed. Check your details or try again later.",
-                friendlyError(error),
-            )
+            assertTrue("Expected IllegalStateException but got $error", error is IllegalStateException)
+            assertTrue(error?.cause is RestException)
+            assertEquals("This request has already been reviewed.", friendlyError(error as Exception))
         } finally { client.close() }
     }
 
