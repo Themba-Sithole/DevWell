@@ -118,6 +118,26 @@ class SupabaseManagerRepositoryTest {
         } finally { client.close() }
     }
 
+    @Test fun serverErrorKeepsOriginalRestException() = runTest {
+        val body = """{"error":"The request could not be saved. Please retry."}"""
+        val error = reviewFailure(HttpStatusCode.InternalServerError, body)
+        assertTrue("Expected RestException but got $error", error is RestException)
+        assertEquals(500, (error as RestException).statusCode)
+        assertEquals(
+            "The request could not be completed. Check your details or try again later.",
+            friendlyError(error),
+        )
+    }
+
+    @Test fun unreadableConflictKeepsOriginalRestException() = runTest {
+        for (body in listOf("not json", """{"message":"no error field"}""")) {
+            val error = reviewFailure(HttpStatusCode.Conflict, body)
+            assertTrue("Body $body: expected RestException but got $error", error is RestException)
+            assertFalse(error is IllegalStateException)
+            assertEquals(body, (error as RestException).error)
+        }
+    }
+
     @Test fun teamSettingsAreNotSavedYet() = runTest {
         val repo = SupabaseManagerRepository(client = null, scope = backgroundScope)
         val error = runCatching { repo.updateTeamSettings(Team("t1", "c1", "Mobile")) }.exceptionOrNull()
@@ -141,6 +161,20 @@ class SupabaseManagerRepositoryTest {
             client.auth.signOut()
             assertNull(awaitValue(repo.managedTeam) { it == null })
             assertEquals(emptyList<JoinRequest>(), awaitValue(repo.joinRequests) { it.isEmpty() })
+        } finally { client.close() }
+    }
+
+    /** Signs in, answers review-join-request with [status] and [body], and returns what the review threw. */
+    private suspend fun kotlinx.coroutines.test.TestScope.reviewFailure(status: HttpStatusCode, body: String): Throwable? {
+        val client = client(MockEngine { request ->
+            if (request.url.encodedPath == "/functions/v1/review-join-request") {
+                respond(body, status, headersOf("Content-Type", "application/json"))
+            } else json(if (request.url.encodedPath == "/auth/v1/token") token else "[]")
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            return runCatching { repo.reviewJoinRequest("r2", approve = true) }.exceptionOrNull()
         } finally { client.close() }
     }
 
