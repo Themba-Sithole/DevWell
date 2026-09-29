@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -12,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import za.co.devwell.model.JoinRequest
 import za.co.devwell.model.JoinRequestStatus
 import za.co.devwell.model.PrivacyPolicy
@@ -20,6 +22,21 @@ import za.co.devwell.model.TeamAggregate
 import za.co.devwell.ui.components.DevWellCard
 import za.co.devwell.ui.components.PageTitle
 import za.co.devwell.ui.components.PrivacyNotice
+import za.co.devwell.viewmodel.ManagerViewModel
+
+private fun Double?.oneDecimal(): String = this?.let { "%.1f".format(it) } ?: "-"
+
+@Composable
+private fun FeedbackCard(error: String?, message: String?, onDismiss: () -> Unit) {
+    DevWellCard {
+        if (error != null) {
+            Text(error, color = MaterialTheme.colorScheme.error)
+        } else if (message != null) {
+            Text(message)
+        }
+        TextButton(onClick = onDismiss) { Text("Dismiss") }
+    }
+}
 
 @Composable
 fun ManagerHomeScreen(
@@ -45,7 +62,7 @@ fun ManagerHomeScreen(
                     Text("Not enough responses", fontWeight = FontWeight.Bold)
                     Text(
                         "Team charts stay hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                            "responses. Current: ${aggregate.responseCount}",
+                                "responses. Current: ${aggregate.responseCount}",
                     )
                 }
             }
@@ -58,9 +75,10 @@ fun ManagerHomeScreen(
             item {
                 DevWellCard {
                     Text("Team averages", style = MaterialTheme.typography.titleMedium)
-                    Text("Wellbeing ${"%.1f".format(safe.averageWellbeing)}/5")
-                    Text("Workload ${"%.1f".format(safe.averageWorkload)}/5")
-                    Text("Energy ${"%.1f".format(safe.averageEnergy)}/10 • Focus ${"%.1f".format(safe.averageFocus)}/10")
+                    Text("Wellbeing ${safe.averageWellbeing.oneDecimal()}/5")
+                    Text("Workload ${safe.averageWorkload.oneDecimal()}/5")
+                    Text("Energy ${safe.averageEnergy.oneDecimal()}/10")
+                    Text("Focus ${safe.averageFocus.oneDecimal()}/10")
                 }
             }
         }
@@ -77,25 +95,37 @@ fun ManagerHomeScreen(
 fun JoinRequestsScreen(
     requests: List<JoinRequest>,
     onReview: (requestId: String, approve: Boolean) -> Unit,
+    reviewingId: String? = null,
+    error: String? = null,
+    message: String? = null,
+    onDismissFeedback: () -> Unit = {},
 ) {
+    val busy = reviewingId != null
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { PageTitle("Join requests", "Approve or decline engineers for your company") }
+        if (error != null || message != null) {
+            item { FeedbackCard(error, message, onDismissFeedback) }
+        }
         if (requests.isEmpty()) {
             item { DevWellCard { Text("No pending requests.") } }
         }
-        items(requests) { request ->
+        items(requests, key = { it.id }) { request ->
             DevWellCard {
                 Text(request.userName, fontWeight = FontWeight.Bold)
                 Text(request.userEmail)
                 Text("Status: ${request.status.name.lowercase()}")
                 if (request.status == JoinRequestStatus.PENDING) {
                     Spacer(Modifier.height(12.dp))
+                    if (reviewingId == request.id) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onReview(request.id, true) }) { Text("Approve") }
-                        OutlinedButton(onClick = { onReview(request.id, false) }) { Text("Decline") }
+                        Button(onClick = { onReview(request.id, true) }, enabled = !busy) { Text("Approve") }
+                        OutlinedButton(onClick = { onReview(request.id, false) }, enabled = !busy) { Text("Decline") }
                     }
                 }
             }
@@ -107,6 +137,10 @@ fun JoinRequestsScreen(
 fun TeamSettingsScreen(
     team: Team?,
     onSave: (Team) -> Unit,
+    saving: Boolean = false,
+    error: String? = null,
+    message: String? = null,
+    onDismissFeedback: () -> Unit = {},
 ) {
     if (team == null) {
         Column(Modifier.fillMaxSize().padding(20.dp)) {
@@ -124,6 +158,9 @@ fun TeamSettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { PageTitle("Team settings", team.name) }
+        if (error != null || message != null) {
+            item { FeedbackCard(error, message, onDismissFeedback) }
+        }
         item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Team name") }) }
         item { OutlinedTextField(timezone, { timezone = it }, Modifier.fillMaxWidth(), label = { Text("Timezone") }) }
         item { OutlinedTextField(cadence, { cadence = it }, Modifier.fillMaxWidth(), label = { Text("Check-in cadence") }) }
@@ -132,8 +169,9 @@ fun TeamSettingsScreen(
                 onClick = {
                     onSave(team.copy(name = name, timezone = timezone, checkInCadence = cadence))
                 },
+                enabled = !saving && name.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Save settings") }
+            ) { Text(if (saving) "Saving..." else "Save settings") }
         }
         item {
             DevWellCard {
@@ -142,4 +180,33 @@ fun TeamSettingsScreen(
             }
         }
     }
+}
+
+/** Connects the join-requests screen to its ViewModel. Clears old feedback on entry. */
+@Composable
+fun JoinRequestsRoute(viewModel: ManagerViewModel) {
+    val state by viewModel.ui.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.clearFeedback() }
+    JoinRequestsScreen(
+        requests = state.joinRequests,
+        onReview = viewModel::reviewJoinRequest,
+        reviewingId = state.reviewingId,
+        error = state.error,
+        message = state.message,
+        onDismissFeedback = viewModel::clearFeedback,
+    )
+}
+
+@Composable
+fun TeamSettingsRoute(viewModel: ManagerViewModel) {
+    val state by viewModel.ui.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.clearFeedback() }
+    TeamSettingsScreen(
+        team = state.team,
+        onSave = viewModel::updateTeamSettings,
+        saving = state.savingSettings,
+        error = state.error,
+        message = state.message,
+        onDismissFeedback = viewModel::clearFeedback,
+    )
 }
