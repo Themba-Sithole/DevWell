@@ -1,0 +1,152 @@
+package za.co.devwell.viewmodel
+
+import androidx.lifecycle.ViewModelStore
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.*
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import za.co.devwell.data.ManagerRepository
+import za.co.devwell.model.JoinRequest
+import za.co.devwell.model.JoinRequestStatus
+import za.co.devwell.model.Team
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ManagerViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+    private val store = ViewModelStore()
+
+    @Before fun setup() { Dispatchers.setMain(dispatcher) }
+    @After fun teardown() { store.clear(); Dispatchers.resetMain() }
+
+    private fun model(fake: FakeManager) = ManagerViewModel(fake).also { store.put("manager", it) }
+
+    @Test fun approvingUpdatesStatusAndShowsMessage() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.reviewJoinRequest("jr1", true); runCurrent()
+
+        assertEquals(1, fake.reviewCalls)
+        assertEquals(JoinRequestStatus.APPROVED, vm.ui.value.joinRequests.first { it.id == "jr1" }.status)
+        assertEquals("Request approved.", vm.ui.value.message)
+        assertNull(vm.ui.value.reviewingId)
+    }
+
+    @Test fun decliningShowsDeclineMessage() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.reviewJoinRequest("jr1", false); runCurrent()
+
+        assertEquals(JoinRequestStatus.REJECTED, vm.ui.value.joinRequests.first { it.id == "jr1" }.status)
+        assertEquals("Request declined.", vm.ui.value.message)
+    }
+
+    @Test fun failedReviewShowsErrorAndClearsBusy() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.fail = true
+        val vm = model(fake); runCurrent()
+
+        vm.reviewJoinRequest("jr1", true); runCurrent()
+
+        assertNotNull(vm.ui.value.error)
+        assertNull(vm.ui.value.message)
+        assertNull(vm.ui.value.reviewingId)
+        // status is unchanged because the repository call failed
+        assertEquals(JoinRequestStatus.PENDING, vm.ui.value.joinRequests.first { it.id == "jr1" }.status)
+    }
+
+    @Test fun repeatedTapMakesOnlyOneReviewCall() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.waitForReview = CompletableDeferred()
+        val vm = model(fake); runCurrent()
+
+        vm.reviewJoinRequest("jr1", true)
+        vm.reviewJoinRequest("jr1", true)
+        runCurrent()
+
+        assertEquals(1, fake.reviewCalls)
+        assertEquals("jr1", vm.ui.value.reviewingId)
+        fake.waitForReview!!.complete(Unit); runCurrent()
+        assertNull(vm.ui.value.reviewingId)
+    }
+
+    @Test fun blankTeamNameIsRejectedWithoutCallingRepository() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.updateTeamSettings(fake.team.value!!.copy(name = "   ")); runCurrent()
+
+        assertEquals(0, fake.updateCalls)
+        assertNotNull(vm.ui.value.error)
+        assertFalse(vm.ui.value.savingSettings)
+    }
+
+    @Test fun savingTeamSettingsTrimsNameAndShowsMessage() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.updateTeamSettings(fake.team.value!!.copy(name = "  Renamed  ")); runCurrent()
+
+        assertEquals(1, fake.updateCalls)
+        assertEquals("Renamed", fake.team.value?.name)
+        assertEquals("Team settings saved.", vm.ui.value.message)
+    }
+
+    @Test fun failedSaveShowsErrorAndClearsSaving() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.fail = true
+        val vm = model(fake); runCurrent()
+
+        vm.updateTeamSettings(fake.team.value!!.copy(name = "Renamed")); runCurrent()
+
+        assertNotNull(vm.ui.value.error)
+        assertFalse(vm.ui.value.savingSettings)
+    }
+
+    @Test fun clearFeedbackRemovesErrorAndMessage() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.fail = true
+        val vm = model(fake); runCurrent()
+        vm.reviewJoinRequest("jr1", true); runCurrent()
+        assertNotNull(vm.ui.value.error)
+
+        vm.clearFeedback()
+
+        assertNull(vm.ui.value.error)
+        assertNull(vm.ui.value.message)
+    }
+
+    private class FakeManager : ManagerRepository {
+        override val joinRequests = MutableStateFlow(
+            listOf(
+                JoinRequest("jr1", "u_j1", "Jamie Clarke", "jamie@devwell.io", "c1", "t1"),
+                JoinRequest("jr2", "u_j2", "Riya Patel", "riya@devwell.io", "c1", "t2"),
+            )
+        )
+        val team = MutableStateFlow<Team?>(Team("t1", "c1", "Mobile Team", managerId = "u2", memberCount = 8))
+        override val managedTeam = team
+
+        var fail = false
+        var reviewCalls = 0
+        var updateCalls = 0
+        var waitForReview: CompletableDeferred<Unit>? = null
+
+        override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) {
+            reviewCalls++
+            waitForReview?.await()
+            if (fail) error("Review failed")
+            joinRequests.value = joinRequests.value.map {
+                if (it.id != requestId) it
+                else it.copy(status = if (approve) JoinRequestStatus.APPROVED else JoinRequestStatus.REJECTED)
+            }
+        }
+
+        override suspend fun updateTeamSettings(team: Team) {
+            updateCalls++
+            if (fail) error("Save failed")
+            this.team.value = team
+        }
+    }
+}

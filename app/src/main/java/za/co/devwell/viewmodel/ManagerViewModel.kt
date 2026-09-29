@@ -1,0 +1,96 @@
+package za.co.devwell.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import za.co.devwell.data.ManagerRepository
+import za.co.devwell.model.JoinRequest
+import za.co.devwell.model.Team
+
+data class ManagerUiState(
+    val joinRequests: List<JoinRequest> = emptyList(),
+    val team: Team? = null,
+    val reviewingId: String? = null,      // request currently being approved/declined
+    val savingSettings: Boolean = false,
+    val error: String? = null,
+    val message: String? = null,
+)
+
+/** Join-request review and team settings for managers. Aggregates stay in DevWellViewModel for now. */
+class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() {
+    private val state = MutableStateFlow(ManagerUiState())
+    val ui: StateFlow<ManagerUiState> = state.asStateFlow()
+
+    init {
+        observe(repository.joinRequests) { current, requests -> current.copy(joinRequests = requests) }
+        observe(repository.managedTeam) { current, team -> current.copy(team = team) }
+    }
+
+    private fun <T> observe(flow: Flow<T>, apply: (ManagerUiState, T) -> ManagerUiState) {
+        viewModelScope.launch {
+            try {
+                flow.collect { value -> state.update { apply(it, value) } }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            }
+        }
+    }
+
+    fun clearFeedback() = state.update { it.copy(error = null, message = null) }
+
+
+    fun reviewJoinRequest(requestId: String, approve: Boolean) {
+        if (state.value.reviewingId != null) return   // ignore repeated taps
+        state.update { it.copy(reviewingId = requestId, error = null, message = null) }
+        viewModelScope.launch {
+            try {
+                repository.reviewJoinRequest(requestId, approve)
+                state.update { it.copy(message = if (approve) "Request approved." else "Request declined.") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            } finally {
+                state.update { it.copy(reviewingId = null) }
+            }
+        }
+    }
+
+    fun updateTeamSettings(team: Team) {
+        if (state.value.savingSettings) return
+        if (team.name.isBlank()) {
+            state.update { it.copy(error = "Team name cannot be empty.", message = null) }
+            return
+        }
+        state.update { it.copy(savingSettings = true, error = null, message = null) }
+        viewModelScope.launch {
+            try {
+                repository.updateTeamSettings(team.copy(name = team.name.trim()))
+                state.update { it.copy(message = "Team settings saved.") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            } finally {
+                state.update { it.copy(savingSettings = false) }
+            }
+        }
+    }
+}
+
+class ManagerViewModelFactory(private val repository: ManagerRepository) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        require(modelClass.isAssignableFrom(ManagerViewModel::class.java))
+        return ManagerViewModel(repository) as T
+    }
+}
