@@ -146,22 +146,36 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             composable(Routes.ENGINEER_HOME) {
                 EngineerHomeScreen(
                     name = user.name,
-                    onCheckIn = { navController.navigate(Routes.CHECK_IN) },
+                    onCheckIn = {
+                        navController.navigate(Routes.CHECK_IN) { launchSingleTop = true }
+                    },
                     onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
                     onAiAssistant = { navController.navigate(Routes.AI_ASSISTANT) },
                 )
             }
-            composable(Routes.CHECK_IN) {
-                CheckInScreen(
-                    onCancel = { navController.popBackStack() },
-                    onSubmit = {
-                        viewModel.saveCheckIn(it)
-                        navController.navigate(Routes.TRENDS) {
-                            popUpTo(Routes.ENGINEER_HOME)
+                composable(Routes.CHECK_IN) {
+                    val checkInState by viewModel.checkInSaveState.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(checkInState) {
+                        if (checkInState is za.co.devwell.viewmodel.SaveState.Success) {
+                            navController.navigate(Routes.TRENDS) {
+                                popUpTo(Routes.ENGINEER_HOME) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                            viewModel.resetCheckInSaveState()
                         }
-                    },
-                )
-            }
+                    }
+
+                    CheckInScreen(
+                        onCancel = {
+                            viewModel.resetCheckInSaveState()
+                            navController.popBackStack()
+                        },
+                        onSubmit = { viewModel.saveCheckIn(it) },
+                        isSaving = checkInState is za.co.devwell.viewmodel.SaveState.Loading,
+                        errorMessage = (checkInState as? za.co.devwell.viewmodel.SaveState.Error)?.message,
+                    )
+                }
             composable(Routes.TRENDS) { TrendsScreen(checkIns) }
             composable(Routes.PROJECTS) {
                 ProjectsScreen(

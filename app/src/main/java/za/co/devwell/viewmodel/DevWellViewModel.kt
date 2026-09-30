@@ -2,12 +2,22 @@ package za.co.devwell.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import za.co.devwell.data.AppContainer
 import za.co.devwell.model.*
+
+/** Member 2 — tracks the outcome of saving a check-in (Phase 4). */
+sealed class SaveState {
+    object Idle : SaveState()
+    object Loading : SaveState()
+    object Success : SaveState()
+    data class Error(val message: String) : SaveState()
+}
 
 /**
  * Shared shell ViewModel for the skeleton.
@@ -42,10 +52,25 @@ class DevWellViewModel : ViewModel() {
     val teams: StateFlow<List<Team>> = AppContainer.onboarding.teams
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-
+    private val _checkInSaveState = MutableStateFlow<SaveState>(SaveState.Idle)
+    /** Drive CheckInScreen's isSaving / errorMessage params from this. */
+    val checkInSaveState: StateFlow<SaveState> = _checkInSaveState.asStateFlow()
 
     fun saveCheckIn(draft: CheckInDraft) = viewModelScope.launch {
-        AppContainer.wellbeing.saveCheckIn(draft)
+        _checkInSaveState.value = SaveState.Loading
+        try {
+            AppContainer.wellbeing.saveCheckIn(draft)
+            _checkInSaveState.value = SaveState.Success
+        } catch (e: Exception) {
+            _checkInSaveState.value = SaveState.Error(
+                e.message ?: "Couldn't save your check-in. Check your connection and try again."
+            )
+        }
+    }
+
+    /** Call after navigating away on Success, or before retrying after an Error. */
+    fun resetCheckInSaveState() {
+        _checkInSaveState.value = SaveState.Idle
     }
 
     fun toggleTask(projectId: String, taskId: String) = viewModelScope.launch {
