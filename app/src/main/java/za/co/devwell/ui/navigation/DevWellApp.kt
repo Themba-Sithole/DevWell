@@ -36,12 +36,8 @@ import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.NotificationsScreen
 import za.co.devwell.ui.settings.ProfileScreen
 import za.co.devwell.viewmodel.DevWellViewModel
-import za.co.devwell.data.AppContainer
-import za.co.devwell.data.MockManagerRepository
-import za.co.devwell.ui.manager.JoinRequestsRoute
-import za.co.devwell.ui.manager.TeamSettingsRoute
-import za.co.devwell.viewmodel.ManagerViewModel
-import za.co.devwell.viewmodel.ManagerViewModelFactory
+import androidx.compose.ui.platform.LocalContext
+import za.co.devwell.notifications.NotificationScheduler
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
@@ -82,20 +78,11 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     val managedTeam by viewModel.managedTeam.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
     val adminStats by viewModel.adminStats.collectAsStateWithLifecycle()
+    val adminUsers by viewModel.adminUsers.collectAsStateWithLifecycle()
     val companies by viewModel.companies.collectAsStateWithLifecycle()
     val teams by viewModel.teams.collectAsStateWithLifecycle()
 
     val navController = rememberNavController()
-    // Managers get their own ViewModel, recreated per signed-in user and per preview mode.
-    val managerViewModel: ManagerViewModel? = if (user.role == UserRole.MANAGER) {
-        val managerRepository = remember(preview) {
-            if (preview) MockManagerRepository() else AppContainer.manager
-        }
-        androidx.lifecycle.viewmodel.compose.viewModel<ManagerViewModel>(
-            key = "manager-${user.id}-$preview",
-            factory = ManagerViewModelFactory(managerRepository),
-        )
-    } else null
 
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
@@ -162,22 +149,36 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             composable(Routes.ENGINEER_HOME) {
                 EngineerHomeScreen(
                     name = user.name,
-                    onCheckIn = { navController.navigate(Routes.CHECK_IN) },
+                    onCheckIn = {
+                        navController.navigate(Routes.CHECK_IN) { launchSingleTop = true }
+                    },
                     onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
                     onAiAssistant = { navController.navigate(Routes.AI_ASSISTANT) },
                 )
             }
-            composable(Routes.CHECK_IN) {
-                CheckInScreen(
-                    onCancel = { navController.popBackStack() },
-                    onSubmit = {
-                        viewModel.saveCheckIn(it)
-                        navController.navigate(Routes.TRENDS) {
-                            popUpTo(Routes.ENGINEER_HOME)
+                composable(Routes.CHECK_IN) {
+                    val checkInState by viewModel.checkInSaveState.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(checkInState) {
+                        if (checkInState is za.co.devwell.viewmodel.SaveState.Success) {
+                            navController.navigate(Routes.TRENDS) {
+                                popUpTo(Routes.ENGINEER_HOME) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                            viewModel.resetCheckInSaveState()
                         }
-                    },
-                )
-            }
+                    }
+
+                    CheckInScreen(
+                        onCancel = {
+                            viewModel.resetCheckInSaveState()
+                            navController.popBackStack()
+                        },
+                        onSubmit = { viewModel.saveCheckIn(it) },
+                        isSaving = checkInState is za.co.devwell.viewmodel.SaveState.Loading,
+                        errorMessage = (checkInState as? za.co.devwell.viewmodel.SaveState.Error)?.message,
+                    )
+                }
             composable(Routes.TRENDS) { TrendsScreen(checkIns) }
             composable(Routes.PROJECTS) {
                 ProjectsScreen(
@@ -212,9 +213,12 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
                 )
             }
-                composable(Routes.JOIN_REQUESTS) { managerViewModel?.let { JoinRequestsRoute(it) } }
-                composable(Routes.TEAM_SETTINGS) { managerViewModel?.let { TeamSettingsRoute(it) } }
-
+            composable(Routes.JOIN_REQUESTS) {
+                JoinRequestsScreen(joinRequests, viewModel::reviewJoinRequest)
+            }
+            composable(Routes.TEAM_SETTINGS) {
+                TeamSettingsScreen(managedTeam, viewModel::updateTeamSettings)
+            }
             composable(Routes.MANAGER_PROFILE) {
                 ProfileScreen(
                     role = UserRole.MANAGER,
@@ -226,7 +230,13 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             }
             if (user.role == UserRole.ADMIN) {
             // Admin
-            composable(Routes.ADMIN_HOME) { AdminHomeScreen(adminStats) }
+            composable(Routes.ADMIN_HOME) {
+                AdminHomeScreen(
+                    stats = adminStats,
+                    users = adminUsers,
+                    onSetUserStatus = viewModel::setUserStatus,
+                )
+            }
             composable(Routes.ADMIN_PROFILE) {
                 ProfileScreen(
                     role = UserRole.ADMIN,
@@ -236,9 +246,13 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             }
             }
             composable(Routes.NOTIFICATIONS) {
+                val context = LocalContext.current
                 NotificationsScreen(
                     prefs = notificationPrefs,
-                    onSave = viewModel::updateNotificationPrefs,
+                    onSave = { prefs ->
+                        viewModel.updateNotificationPrefs(prefs)
+                        NotificationScheduler.applyPreferences(context, prefs)
+                    },
                 )
             }
 
