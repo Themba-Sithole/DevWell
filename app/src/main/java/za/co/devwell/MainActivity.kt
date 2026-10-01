@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
+import za.co.devwell.data.AppContainer
 import za.co.devwell.notifications.createNotificationChannels
 import za.co.devwell.ui.navigation.DevWellApp
 import za.co.devwell.ui.theme.DevWellTheme
@@ -13,6 +14,7 @@ import za.co.devwell.viewmodel.DevWellViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppContainer.initialize(applicationContext)
         createNotificationChannels(this)
         enableEdgeToEdge()
         setContent {
