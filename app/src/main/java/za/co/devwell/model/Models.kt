@@ -1,5 +1,7 @@
 package za.co.devwell.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * Domain models aligned with Deliverable 3 data design.
  * Keep these shared; feature teams should not invent parallel types.
@@ -57,7 +59,12 @@ data class JoinRequest(
     val status: JoinRequestStatus = JoinRequestStatus.PENDING,
 )
 
-/** Draft values collected during the 5-step check-in flow. */
+/**
+ * Draft values collected during the 5-step check-in flow.
+ * @Serializable so it can be stored directly as the `responses` JSONB column
+ * in Supabase's check_in table (see SupabaseWellbeingRepository).
+ */
+@Serializable
 data class CheckInDraft(
     val wellbeing: Int = 3,          // 1..5 (Struggling..Great)
     val workload: Int = 3,           // 1..5 (Very light..Very heavy)
