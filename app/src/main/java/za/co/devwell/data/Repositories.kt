@@ -1,7 +1,19 @@
 package za.co.devwell.data
 
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import za.co.devwell.model.*
 
 /* --------------------------------------------------------------------------
@@ -65,6 +77,8 @@ interface AiGuidanceRepository {
 
 interface AdminRepository {
     val stats: Flow<Map<String, Int>>
+    val users: Flow<List<DevWellUser>>
+    suspend fun setUserStatus(userId: String, active: Boolean)
 }
 
 /* --------------------------------------------------------------------------
@@ -146,6 +160,72 @@ class MockWellbeingRepository : WellbeingRepository {
 
     override suspend fun saveCheckIn(draft: CheckInDraft) {
         items.value = items.value + CheckIn("c${items.value.size + 1}", "u1", "Today", draft)
+    }
+}
+
+/* --------------------------------------------------------------------------
+ * Member 2 — real Supabase-backed check-in storage (FR4, FR5, Phase 3).
+ * Table: public.check_in (id, user_id, responses jsonb, created_at).
+ * RLS restricts rows to their owner — see create_check_in_table.sql.
+ * -------------------------------------------------------------------------- */
+
+@Serializable
+private data class CheckInRow(
+    val id: String,
+    @SerialName("user_id") val userId: String,
+    val responses: CheckInDraft,
+    @SerialName("created_at") val createdAt: String,
+) {
+    fun toCheckIn() = CheckIn(
+        id = id,
+        userId = userId,
+        dateLabel = createdAt.take(10), // e.g. "2026-09-29" — Trends (Member 3) can reformat if needed
+        values = responses,
+    )
+}
+
+@Serializable
+private data class NewCheckInRow(
+    @SerialName("user_id") val userId: String,
+    val responses: CheckInDraft,
+)
+
+class SupabaseWellbeingRepository(
+    private val client: SupabaseClient?,
+    currentUser: Flow<DevWellUser?>,
+    scope: CoroutineScope,
+) : WellbeingRepository {
+    private val items = MutableStateFlow<List<CheckIn>>(emptyList())
+    override val checkIns: Flow<List<CheckIn>> = items
+
+    init {
+        // Reload whenever the signed-in user changes (including sign-out -> empty list).
+        currentUser.onEach { user ->
+            if (user == null) {
+                items.value = emptyList()
+            } else {
+                refresh(user.id)
+            }
+        }.launchIn(scope)
+    }
+
+    private fun connection() = client ?: error(
+        "Add the Supabase project URL and public key to local.properties, then rebuild the app."
+    )
+
+    private suspend fun refresh(userId: String) {
+        val rows = connection().from("check_in")
+            .select { filter { eq("user_id", userId) } }
+            .decodeList<CheckInRow>()
+        items.value = rows.sortedByDescending { it.createdAt }.map { it.toCheckIn() }
+    }
+
+    override suspend fun saveCheckIn(draft: CheckInDraft) {
+        val supabase = connection()
+        val userId = supabase.auth.currentUserOrNull()?.id
+            ?: error("Please sign in again.")
+        supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft))
+        refresh(userId)
     }
 }
 
@@ -306,8 +386,8 @@ class MockAiGuidanceRepository : AiGuidanceRepository {
         if (question.isBlank()) return Result.failure(IllegalArgumentException("Ask a question"))
         return Result.success(
             "Guidance only — not professional advice.\n\n" +
-                "Try protecting two 25-minute focus blocks and ending work at your planned time. " +
-                "If after-hours work stays high, raise it in a team retro without sharing individual scores."
+                    "Try protecting two 25-minute focus blocks and ending work at your planned time. " +
+                    "If after-hours work stays high, raise it in a team retro without sharing individual scores."
         )
     }
 }
@@ -317,32 +397,43 @@ class MockAdminRepository : AdminRepository {
         mapOf("Users" to 42, "Companies" to 4, "Teams" to 9, "Pending requests" to 6)
     )
     override val stats: Flow<Map<String, Int>> = statsState
+
+    private val usersState = MutableStateFlow(
+        listOf(
+            DevWellUser("u1", "zuh", "zuh@devwell.io", UserRole.ENGINEER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
+            DevWellUser("u2", "themb", "themb@devwell.io", UserRole.MANAGER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
+            DevWellUser("u3", "taash", "taash@devwell.io", UserRole.ADMIN),
+            DevWellUser("u4", "dan", "dan@devwell.io", UserRole.ENGINEER, companyId = "c1", status = AccountStatus.PENDING),
+        )
+    )
+    override val users: Flow<List<DevWellUser>> = usersState
+
+    override suspend fun setUserStatus(userId: String, active: Boolean) {
+        usersState.value = usersState.value.map {
+            if (it.id == userId) it.copy(status = if (active) AccountStatus.ACTIVE else AccountStatus.REJECTED)
+            else it
+        }
+    }
 }
 
+/** Single composition root. Swap Mock* → Supabase* here when the backend is ready. */
 object AppContainer {
     private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
-    private var projectRepository: ProjectRepository = MockProjectRepository()
+    private lateinit var wellbeingRepo: WellbeingRepository
 
     fun initialize(context: android.content.Context) {
         if (!::identity.isInitialized) {
-            val scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main,
-            )
             val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
-            projectRepository = if (client == null) {
-                MockProjectRepository()
-            } else {
-                za.co.devwell.data.projects.SupabaseProjectRepository(client, scope)
-            }
+            wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
         }
     }
-
     val auth: AuthRepository get() = identity
     val onboarding: OnboardingRepository get() = identity
-    val wellbeing: WellbeingRepository = MockWellbeingRepository()
+    val wellbeing: WellbeingRepository get() = wellbeingRepo
     val teamInsights: TeamInsightsRepository = MockTeamInsightsRepository()
-    val projects: ProjectRepository get() = projectRepository
+    val projects: ProjectRepository = MockProjectRepository()
     val manager: ManagerRepository = MockManagerRepository()
     val notifications: NotificationRepository = MockNotificationRepository()
     val ai: AiGuidanceRepository = MockAiGuidanceRepository()
