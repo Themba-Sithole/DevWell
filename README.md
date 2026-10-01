@@ -5,10 +5,13 @@ ITDMA3-34, Team 3. Native Android app using Kotlin and Jetpack Compose.
 ## Open and run
 
 1. Open this folder in Android Studio (it contains `settings.gradle.kts`).
-2. Use Gradle JDK 17 and install Android SDK 35.
+2. Under **Settings > Build, Execution, Deployment > Build Tools > Gradle**, use
+   Android Studio's bundled JDK (or JDK 17), and install Android SDK 35.
+   This computer's system `JAVA_HOME` points to Java 8, so do not select it.
 3. Keep your local `sdk.dir` entry in `local.properties`. Add the two entries from
    `local.properties.example`, using the project's public publishable key.
-4. Sync Gradle and run `app` on an API 26+ emulator or phone.
+4. Sync Gradle, select the shared `app` run configuration, and run it on an API 26+
+   emulator or phone. The configuration builds the debug app and launches its main activity.
 
 Never put a Supabase service-role/secret key in this app. `local.properties` is ignored.
 Kotlin 2.1.0, Supabase Kotlin 3.0.3 and Ktor 3.0.2 are pinned together.
