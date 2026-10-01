@@ -420,20 +420,27 @@ class MockAdminRepository : AdminRepository {
 object AppContainer {
     private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
     private lateinit var wellbeingRepo: WellbeingRepository
+    private var projectRepository: ProjectRepository = MockProjectRepository()
 
     fun initialize(context: android.content.Context) {
         if (!::identity.isInitialized) {
-            val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+            val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
             wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
+            projectRepository = if (client == null) {
+                MockProjectRepository()
+            } else {
+                za.co.devwell.data.projects.SupabaseProjectRepository(client, scope)
+            }
         }
     }
+
     val auth: AuthRepository get() = identity
     val onboarding: OnboardingRepository get() = identity
     val wellbeing: WellbeingRepository get() = wellbeingRepo
     val teamInsights: TeamInsightsRepository = MockTeamInsightsRepository()
-    val projects: ProjectRepository = MockProjectRepository()
+    val projects: ProjectRepository get() = projectRepository
     val manager: ManagerRepository = MockManagerRepository()
     val notifications: NotificationRepository = MockNotificationRepository()
     val ai: AiGuidanceRepository = MockAiGuidanceRepository()
