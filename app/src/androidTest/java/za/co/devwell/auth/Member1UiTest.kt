@@ -9,14 +9,24 @@ import za.co.devwell.MainActivity
 class Member1UiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
-    private fun tap(text: String) { compose.onNodeWithText(text).performScrollTo().performClick() }
+    private fun tap(text: String) {
+        val node = compose.onNodeWithText(text)
+        try { node.assertIsDisplayed() } catch (_: AssertionError) { node.performScrollTo() }
+        node.performClick()
+    }
+    private fun openLogin() {
+        compose.waitUntil(20_000) { compose.onAllNodesWithText("I have an account").fetchSemanticsNodes().isNotEmpty() }
+        tap("I have an account")
+    }
     private fun preview(text: String) {
+        openLogin()
         compose.waitUntil(20_000) { compose.onAllNodesWithText("Welcome back").fetchSemanticsNodes().isNotEmpty() }
         tap("Student preview (debug only)")
         tap(text)
     }
 
     @Test fun invalidLoginShowsUsefulMessage() {
+        openLogin()
         compose.waitUntil(20_000) { compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty() }
         tap("Sign in")
         compose.onNodeWithText("Enter your email address.").assertIsDisplayed()
@@ -24,15 +34,17 @@ class Member1UiTest {
 
     @Test fun onboardingRequiresMatchingCompanyAndTeamThenWaitsForApproval() {
         preview("Preview new engineer")
-        compose.onNodeWithText("Submit join request").assertIsNotEnabled()
+        compose.onNodeWithText("Continue").assertIsNotEnabled()
         compose.onNodeWithText("Pending company").assertDoesNotExist()
-        tap("DevWell"); tap("Mobile Team")
-        compose.onNodeWithText("Submit join request").assertIsEnabled()
-        tap("Acme")
-        compose.onNodeWithText("Submit join request").assertIsNotEnabled()
+        tap("DevWell"); tap("Continue")
+        compose.onNodeWithText("Continue").assertIsNotEnabled()
+        tap("Mobile Team"); tap("Continue")
+        compose.onNodeWithText("Confirm your details").assertIsDisplayed()
+        tap("Back"); tap("Back"); tap("Acme"); tap("Continue")
+        compose.onNodeWithText("Continue").assertIsNotEnabled()
         compose.onNodeWithText("Mobile Team").assertDoesNotExist()
-        tap("Backend Team"); tap("Submit join request")
-        compose.onNodeWithText("Waiting for approval").assertIsDisplayed()
+        tap("Backend Team"); tap("Continue"); tap("Send Request")
+        compose.onNodeWithText("Awaiting Approval").assertIsDisplayed()
         compose.onNodeWithText("Projects").assertDoesNotExist()
         tap("Simulate rejection")
         compose.onNodeWithText("Request not approved").assertIsDisplayed()
@@ -45,9 +57,9 @@ class Member1UiTest {
         compose.onNodeWithText("Projects").assertDoesNotExist()
         compose.onNodeWithText("Profile").performClick()
         compose.onNodeWithText("Sign out").performClick()
-        compose.onNodeWithText("Welcome back").assertIsDisplayed()
+        compose.onNodeWithText("I have an account").assertIsDisplayed()
         compose.activityRule.scenario.recreate()
-        compose.onNodeWithText("Welcome back").assertIsDisplayed()
+        compose.onNodeWithText("I have an account").assertIsDisplayed()
         compose.onNodeWithText("Dashboard", useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -56,10 +68,11 @@ class Member1UiTest {
         compose.onNodeWithText("Projects").assertDoesNotExist()
         compose.onNodeWithText("Profile").performClick()
         compose.onNodeWithText("Sign out").performClick()
-        compose.onNodeWithText("Welcome back").assertIsDisplayed()
+        compose.onNodeWithText("I have an account").assertIsDisplayed()
     }
 
     @Test fun registrationRetainsEmailButNotPasswordOnRotation() {
+        openLogin()
         compose.waitUntil(20_000) { compose.onAllNodesWithText("Welcome back").fetchSemanticsNodes().isNotEmpty() }
         tap("New here? Create an account")
         compose.onNodeWithText("Full name").performTextInput("Alex Student")
