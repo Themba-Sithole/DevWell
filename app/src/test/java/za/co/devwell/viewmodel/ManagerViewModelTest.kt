@@ -106,6 +106,82 @@ class ManagerViewModelTest {
         assertFalse(vm.ui.value.savingSettings)
     }
 
+    // --- TeamSettingsRules: pure validation, no coroutines needed ---
+
+    private val validTeam = Team("t1", "c1", "Mobile Team", checkInCadence = "Daily", lowWellbeingThreshold = 2.0)
+    private val tooLong = "Team name must be 60 characters or fewer."
+    private val badCadence = "Choose a check-in cadence: Daily or Weekly."
+    private val badThreshold = "Low-wellbeing threshold must be between 1.0 and 4.0."
+
+    @Test fun validTeamPassesRules() {
+        assertNull(TeamSettingsRules.validate(validTeam))
+        assertNull(TeamSettingsRules.validate(validTeam.copy(checkInCadence = "Weekly")))
+    }
+
+    @Test fun blankNameFailsRules() {
+        assertEquals("Team name cannot be empty.", TeamSettingsRules.validate(validTeam.copy(name = "   ")))
+    }
+
+    @Test fun nameLengthLimitIsSixtyAfterTrimming() {
+        assertNull(TeamSettingsRules.validate(validTeam.copy(name = "A".repeat(60))))
+        assertNull(TeamSettingsRules.validate(validTeam.copy(name = "  " + "A".repeat(60) + "  ")))
+        assertEquals(tooLong, TeamSettingsRules.validate(validTeam.copy(name = "A".repeat(61))))
+    }
+
+    @Test fun cadenceMustBeAnAllowedOption() {
+        assertEquals(badCadence, TeamSettingsRules.validate(validTeam.copy(checkInCadence = "Hourly")))
+        assertEquals(badCadence, TeamSettingsRules.validate(validTeam.copy(checkInCadence = null)))
+        assertEquals(badCadence, TeamSettingsRules.validate(validTeam.copy(checkInCadence = "daily")))
+    }
+
+    @Test fun thresholdBoundsAreInclusive() {
+        assertNull(TeamSettingsRules.validate(validTeam.copy(lowWellbeingThreshold = 1.0)))
+        assertNull(TeamSettingsRules.validate(validTeam.copy(lowWellbeingThreshold = 4.0)))
+    }
+
+    @Test fun thresholdOutsideRangeOrMissingFails() {
+        listOf(0.5, 4.5, null, Double.NaN).forEach { value ->
+            assertEquals("threshold=$value", badThreshold, TeamSettingsRules.validate(validTeam.copy(lowWellbeingThreshold = value)))
+        }
+    }
+
+    // --- ManagerViewModel: invalid settings never reach the repository ---
+
+    private fun TestScope.assertRejected(update: (Team) -> Team, expected: String) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.updateTeamSettings(update(fake.team.value!!)); runCurrent()
+
+        assertEquals(expected, vm.ui.value.error)
+        assertEquals(0, fake.updateCalls)
+        assertFalse(vm.ui.value.savingSettings)
+    }
+
+    @Test fun tooLongNameIsRejected() = runTest(dispatcher) {
+        assertRejected({ it.copy(name = "A".repeat(61)) }, tooLong)
+    }
+
+    @Test fun unknownCadenceIsRejected() = runTest(dispatcher) {
+        assertRejected({ it.copy(checkInCadence = "Hourly") }, badCadence)
+    }
+
+    @Test fun outOfRangeThresholdIsRejected() = runTest(dispatcher) {
+        assertRejected({ it.copy(lowWellbeingThreshold = 5.0) }, badThreshold)
+    }
+
+    @Test fun validSaveStoresCadenceAndThreshold() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.updateTeamSettings(fake.team.value!!.copy(checkInCadence = "Weekly", lowWellbeingThreshold = 3.5)); runCurrent()
+
+        assertEquals(1, fake.updateCalls)
+        assertEquals("Weekly", fake.team.value?.checkInCadence)
+        assertEquals(3.5, fake.team.value?.lowWellbeingThreshold!!, 0.0)
+        assertEquals("Team settings saved.", vm.ui.value.message)
+    }
+
     @Test fun clearFeedbackRemovesErrorAndMessage() = runTest(dispatcher) {
         val fake = FakeManager(); fake.fail = true
         val vm = model(fake); runCurrent()
