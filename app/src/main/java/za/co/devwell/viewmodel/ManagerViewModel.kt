@@ -23,6 +23,30 @@ data class ManagerUiState(
     val message: String? = null,
 )
 
+/**
+ * Client-side rules for team settings. The database only checks the name (1..150 chars),
+ * so cadence and threshold are enforced here until they get backend columns.
+ */
+object TeamSettingsRules {
+    const val NAME_MAX_LENGTH = 60
+    val CADENCES = listOf("Daily", "Weekly")
+    val THRESHOLD_RANGE = 1.0..4.0   // wellbeing is scored 1..5
+
+    /** Returns the first problem as a user-facing message, or null when the team is valid. */
+    fun validate(team: Team): String? {
+        val name = team.name.trim()
+        val threshold = team.lowWellbeingThreshold
+        return when {
+            name.isEmpty() -> "Team name cannot be empty."
+            name.length > NAME_MAX_LENGTH -> "Team name must be $NAME_MAX_LENGTH characters or fewer."
+            team.checkInCadence !in CADENCES -> "Choose a check-in cadence: ${CADENCES.joinToString(" or ")}."
+            threshold == null || threshold !in THRESHOLD_RANGE ->
+                "Low-wellbeing threshold must be between 1.0 and 4.0."
+            else -> null
+        }
+    }
+}
+
 /** Join-request review and team settings for managers. Aggregates stay in DevWellViewModel for now. */
 class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() {
     private val state = MutableStateFlow(ManagerUiState())
@@ -67,14 +91,15 @@ class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() 
 
     fun updateTeamSettings(team: Team) {
         if (state.value.savingSettings) return
-        if (team.name.isBlank()) {
-            state.update { it.copy(error = "Team name cannot be empty.", message = null) }
+        val trimmed = team.copy(name = team.name.trim())
+        TeamSettingsRules.validate(trimmed)?.let { problem ->
+            state.update { it.copy(error = problem, message = null) }
             return
         }
         state.update { it.copy(savingSettings = true, error = null, message = null) }
         viewModelScope.launch {
             try {
-                repository.updateTeamSettings(team.copy(name = team.name.trim()))
+                repository.updateTeamSettings(trimmed)
                 state.update { it.copy(message = "Team settings saved.") }
             } catch (error: CancellationException) {
                 throw error
