@@ -40,7 +40,20 @@ class ManagerRowsTest {
         assertNull(team.managerId)
         assertEquals(0, team.memberCount)
         assertEquals("Mobile", team.name)
+        assertEquals("Africa/Johannesburg", team.timezone)
+        assertEquals("Daily", team.checkInCadence)
+        assertEquals(2.0, team.lowWellbeingThreshold)
         val managed = ManagerTeamRow("t1", "c1", "Mobile", managerId = "m1").toTeam()
         assertEquals("m1", managed.managerId)
+    }
+
+    @Test fun teamRowUsesSettingsColumnsWhenPresent() {
+        val team = json.decodeFromString<ManagerTeamRow>(
+            """{"id":"t1","company_id":"c1","name":"Mobile","manager_id":"m1","timezone":"Europe/London","check_in_cadence":"Weekly","low_wellbeing_threshold":3.5}"""
+        ).toTeam()
+        assertEquals("Europe/London", team.timezone)
+        assertEquals("Weekly", team.checkInCadence)
+        assertEquals(3.5, team.lowWellbeingThreshold)
+        assertEquals(0, team.memberCount)
     }
 }
