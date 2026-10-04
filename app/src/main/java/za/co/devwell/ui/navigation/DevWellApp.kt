@@ -28,14 +28,18 @@ import za.co.devwell.ui.engineer.CheckInScreen
 import za.co.devwell.ui.engineer.EngineerHomeScreen
 import za.co.devwell.ui.engineer.PrivacyPreviewScreen
 import za.co.devwell.ui.engineer.TrendsScreen
-import za.co.devwell.ui.manager.JoinRequestsScreen
+import za.co.devwell.ui.manager.JoinRequestsRoute
 import za.co.devwell.ui.manager.ManagerHomeScreen
-import za.co.devwell.ui.manager.TeamSettingsScreen
+import za.co.devwell.ui.manager.TeamSettingsRoute
 import za.co.devwell.ui.projects.ProjectsScreen
 import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.NotificationsScreen
 import za.co.devwell.ui.settings.ProfileScreen
 import za.co.devwell.viewmodel.DevWellViewModel
+import za.co.devwell.viewmodel.ManagerViewModel
+import za.co.devwell.viewmodel.ManagerViewModelFactory
+import za.co.devwell.data.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import za.co.devwell.notifications.NotificationScheduler
 
@@ -74,8 +78,6 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     val checkIns by viewModel.checkIns.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val aggregate by viewModel.teamAggregate.collectAsStateWithLifecycle()
-    val joinRequests by viewModel.joinRequests.collectAsStateWithLifecycle()
-    val managedTeam by viewModel.managedTeam.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
     val adminStats by viewModel.adminStats.collectAsStateWithLifecycle()
     val adminUsers by viewModel.adminUsers.collectAsStateWithLifecycle()
@@ -214,10 +216,12 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 )
             }
             composable(Routes.JOIN_REQUESTS) {
-                JoinRequestsScreen(joinRequests, viewModel::reviewJoinRequest)
+                val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
+                JoinRequestsRoute(managerViewModel)
             }
             composable(Routes.TEAM_SETTINGS) {
-                TeamSettingsScreen(managedTeam, viewModel::updateTeamSettings)
+                val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
+                TeamSettingsRoute(managerViewModel)
             }
             composable(Routes.MANAGER_PROFILE) {
                 ProfileScreen(
