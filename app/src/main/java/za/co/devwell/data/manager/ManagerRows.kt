@@ -30,9 +30,20 @@ data class ManagerTeamRow(
     @SerialName("company_id") val companyId: String,
     val name: String,
     @SerialName("manager_id") val managerId: String? = null,
+    // Added by 20261003120000_member5_team_settings.sql; absent until that migration is live.
+    val timezone: String? = null,
+    @SerialName("check_in_cadence") val checkInCadence: String? = null,
+    @SerialName("low_wellbeing_threshold") val lowWellbeingThreshold: Double? = null,
 ) {
-    // The team table has no settings columns or member count yet, so those keep the Team defaults.
-    fun toTeam() = Team(id = id, companyId = companyId, name = name, managerId = managerId)
+    // Missing settings keep the Team defaults; the team table has no member count, so that stays 0.
+    fun toTeam(): Team {
+        val defaults = Team(id = id, companyId = companyId, name = name, managerId = managerId)
+        return defaults.copy(
+            timezone = timezone ?: defaults.timezone,
+            checkInCadence = checkInCadence ?: defaults.checkInCadence,
+            lowWellbeingThreshold = lowWellbeingThreshold ?: defaults.lowWellbeingThreshold,
+        )
+    }
 }
 
 /** Success body of the review-join-request Edge Function. */
