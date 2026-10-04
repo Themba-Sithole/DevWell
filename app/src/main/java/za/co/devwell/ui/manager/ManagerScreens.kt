@@ -348,4 +348,3 @@ private fun TeamSettingsValidPreview() {
 private fun TeamSettingsLongNamePreview() {
     val team = previewTeam.copy(name = "A".repeat(TeamSettingsRules.NAME_MAX_LENGTH + 1))
     DevWellTheme { TeamSettingsScreen(team, {}, error = TeamSettingsRules.validate(team)) }
-}
