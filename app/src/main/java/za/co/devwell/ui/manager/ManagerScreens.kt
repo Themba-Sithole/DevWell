@@ -33,6 +33,16 @@ import za.co.devwell.viewmodel.TeamSettingsRules
 
 private fun Double?.oneDecimal(): String = this?.let { "%.1f".format(it) } ?: "-"
 
+/**
+ * Roster card wording. The Supabase repository cannot count members yet (RLS hides other users),
+ * so Team.memberCount stays at its default 0. Zero or less is treated as "unknown", not "empty".
+ */
+internal fun memberCountLabel(count: Int): String = when {
+    count <= 0 -> "Member count not available yet"
+    count == 1 -> "1 member"
+    else -> "$count members"
+}
+
 /** One bar on the manager chart. Holds a team average only, never an individual score. */
 internal data class TeamChartBar(val label: String, val value: Double, val scaleMax: Int) {
     /** Share of the track to fill, always within 0..1. */
@@ -279,7 +289,7 @@ fun TeamSettingsScreen(
         item {
             DevWellCard {
                 Text("Member roster", fontWeight = FontWeight.Bold)
-                Text("${team.memberCount} members")
+                Text(memberCountLabel(team.memberCount))
             }
         }
     }
