@@ -85,6 +85,37 @@ class SupabaseManagerRepositoryTest {
         } finally { client.close() }
     }
 
+    @Test fun failedReloadAfterReviewKeepsPreviousTeamAndRequests() = runTest {
+        var reviewed = false
+        var failedReloads = 0
+        val serverError = """{"message":"Server error"}"""
+        val client = client(MockEngine { request ->
+            when (val path = request.url.encodedPath) {
+                "/auth/v1/token" -> json(token)
+                "/functions/v1/review-join-request" -> {
+                    reviewed = true
+                    json("""{"request_id":"r2","status":"approved"}""")
+                }
+                "/rest/v1/team", "/rest/v1/join_request" -> if (reviewed) {
+                    failedReloads++
+                    respond(serverError, HttpStatusCode.InternalServerError, headersOf("Content-Type", "application/json"))
+                } else json(if (path == "/rest/v1/team") team else pending)
+                else -> error("Unexpected request: $path")
+            }
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            val teamBefore = awaitValue(repo.managedTeam) { it != null }
+            val requestsBefore = awaitValue(repo.joinRequests) { it.isNotEmpty() }
+            val error = runCatching { repo.reviewJoinRequest("r2", approve = true) }.exceptionOrNull()
+            assertNull("Expected no error but got $error", error)
+            assertTrue("The reload after the review never ran", failedReloads > 0)
+            assertEquals(teamBefore, repo.managedTeam.value)
+            assertEquals(requestsBefore, repo.joinRequests.value)
+        } finally { client.close() }
+    }
+
     @Test fun mismatchedReviewResultIsRejected() = runTest {
         val client = client(MockEngine { request ->
             json(when (request.url.encodedPath) {
