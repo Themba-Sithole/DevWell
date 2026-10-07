@@ -33,12 +33,12 @@ object TeamSettingsRules {
     val THRESHOLD_RANGE = 1.0..4.0   // wellbeing is scored 1..5
 
     /** Returns the first problem as a user-facing message, or null when the team is valid. */
-    fun validate(team: Team): String? {
+    fun validate(team: Team, existingName: String? = null): String? {
         val name = team.name.trim()
         val threshold = team.lowWellbeingThreshold
         return when {
             name.isEmpty() -> "Team name cannot be empty."
-            name.length > NAME_MAX_LENGTH -> "Team name must be $NAME_MAX_LENGTH characters or fewer."
+            name.length > NAME_MAX_LENGTH && name != existingName?.trim() -> "Team name must be $NAME_MAX_LENGTH characters or fewer."
             team.checkInCadence !in CADENCES -> "Choose a check-in cadence: ${CADENCES.joinToString(" or ")}."
             threshold == null || threshold !in THRESHOLD_RANGE ->
                 "Low-wellbeing threshold must be between 1.0 and 4.0."
@@ -92,7 +92,7 @@ class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() 
     fun updateTeamSettings(team: Team) {
         if (state.value.savingSettings) return
         val trimmed = team.copy(name = team.name.trim())
-        TeamSettingsRules.validate(trimmed)?.let { problem ->
+        TeamSettingsRules.validate(trimmed, state.value.team?.name)?.let { problem ->
             state.update { it.copy(error = problem, message = null) }
             return
         }
