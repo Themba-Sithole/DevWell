@@ -30,7 +30,7 @@ fun ProfileScreen(
         Spacer(Modifier.height(12.dp))
         DevWellCard {
             Text("Privacy", fontWeight = FontWeight.Bold)
-            Text("Managers never see individual check-ins. Team data requires at least 5 responses.")
+            Text("Managers never see individual check-ins. Team data requires at least 5 participants.")
         }
         Spacer(Modifier.height(20.dp))
         OutlinedButton(onClick = onSignOut, Modifier.fillMaxWidth()) { Text("Sign out") }
