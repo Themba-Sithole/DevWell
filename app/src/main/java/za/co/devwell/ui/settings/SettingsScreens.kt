@@ -106,6 +106,7 @@ fun AiAssistantScreen(
     var answer by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var consent by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageTitle("DevWell assistant", "Guidance only — not professional advice")
@@ -123,17 +124,22 @@ fun AiAssistantScreen(
             label = { Text("Ask about workload, focus or wellbeing") },
             minLines = 3,
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = consent, onCheckedChange = { consent = it }, enabled = !loading)
+            Text("I agree to send this question to Google Gemini, which may use it to improve its products.")
+        }
         Button(
             onClick = {
                 loading = true
                 error = null
                 answer = null
+                consent = false
                 onAsk(question, previewAssistantAvailable) { result ->
                     loading = false
                     result.onSuccess { answer = it }.onFailure { error = it.message }
                 }
             },
-            enabled = (liveAssistantAvailable || previewAssistantAvailable) && question.isNotBlank() && !loading,
+            enabled = (liveAssistantAvailable || previewAssistantAvailable) && question.isNotBlank() && consent && !loading,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (loading) "Thinking…" else "Ask") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
