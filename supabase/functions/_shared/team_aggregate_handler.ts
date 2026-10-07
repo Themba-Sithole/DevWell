@@ -27,6 +27,11 @@ function average(rows: CheckInResponses[], field: keyof CheckInResponses, min: n
   return values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function anonymousAverage(rows: CheckInResponses[], field: keyof CheckInResponses, min: number, max: number): number | null {
+  const values = rows.map((row) => Number(row[field])).filter((value) => Number.isFinite(value) && value >= min && value <= max);
+  return values.length < 5 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function validDate(value: unknown): value is string {
   if (typeof value !== "string" || !isoDate.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
@@ -184,11 +189,11 @@ export function createTeamAggregateHandler(config: Config, send: Fetcher = fetch
       return reply(200, {
         team_id: body.team_id,
         response_count: participantCount,
-        average_wellbeing: average(participantAverages, "wellbeing", 1, 5),
-        average_workload: average(participantAverages, "workload", 1, 5),
-        average_energy: average(participantAverages, "energy", 1, 10),
-        average_focus: average(participantAverages, "focus", 1, 10),
-        average_after_hours_minutes: average(participantAverages, "afterHoursMinutes", 0, 1440),
+        average_wellbeing: anonymousAverage(participantAverages, "wellbeing", 1, 5),
+        average_workload: anonymousAverage(participantAverages, "workload", 1, 5),
+        average_energy: anonymousAverage(participantAverages, "energy", 1, 10),
+        average_focus: anonymousAverage(participantAverages, "focus", 1, 10),
+        average_after_hours_minutes: anonymousAverage(participantAverages, "afterHoursMinutes", 0, 1440),
       });
     } catch {
       // Never log or return tokens, service keys, row data, or raw backend errors.
