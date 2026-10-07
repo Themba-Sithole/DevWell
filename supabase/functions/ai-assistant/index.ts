@@ -11,6 +11,12 @@ const reply = (status: number, body: unknown) =>
 
 const systemInstruction = `You are DevWell, a supportive workplace wellbeing assistant. Offer practical, low-risk guidance about focus, workload, communication, and general wellbeing. You are not a clinician: do not diagnose conditions, recommend medication, or present your response as professional medical advice. Keep replies concise and kind. If someone describes immediate danger or intent to harm themselves or another person, encourage them to contact local emergency services or a trusted person now; do not guess a hotline number. Do not ask for identifying details.`;
 
+async function hashRateLimitSubject(subject: string, salt: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`${salt}:${subject}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders });
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
@@ -20,7 +26,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabasePublicKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
-  if (!supabaseUrl || !supabasePublicKey || !geminiApiKey) {
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !supabasePublicKey || !geminiApiKey || !serviceRoleKey) {
     return reply(503, { error: "The assistant is not configured yet." });
   }
 
@@ -69,6 +76,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     // Preview requests are allowed through the Supabase gateway without a user
     // session. Signed-in requests must still belong to an active profile.
+    let rateLimitSubject: string;
     if (payload.preview !== true) {
       if (!/^Bearer \S+$/i.test(authorization)) return reply(401, { error: "Please sign in first." });
       const authHeaders = { apikey: supabasePublicKey, Authorization: authorization };
@@ -93,7 +101,27 @@ Deno.serve(async (request: Request): Promise<Response> => {
       const profiles: unknown = await profileResponse.json();
       const profile = Array.isArray(profiles) ? profiles[0] as { status?: unknown } | undefined : undefined;
       if (profile?.status !== "active") return reply(403, { error: "Your account must be active to use the assistant." });
+      rateLimitSubject = `user:${identity.id}`;
+    } else {
+      // Supabase sets cf-connecting-ip at its gateway; ignore client-provided forwarded-for values.
+      const clientIp = request.headers.get("cf-connecting-ip");
+      if (!clientIp) return reply(503, { error: "The preview assistant is temporarily unavailable." });
+      rateLimitSubject = `preview:${clientIp}`;
     }
+
+    const rateLimitResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/consume_ai_assistant_request`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_subject_hash: await hashRateLimitSubject(rateLimitSubject, serviceRoleKey) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!rateLimitResponse.ok) return reply(503, { error: "The assistant is temporarily unavailable." });
+    const requestAllowed: unknown = await rateLimitResponse.json();
+    if (requestAllowed !== true) return reply(429, { error: "You have reached the assistant limit. Try again in an hour." });
 
     const geminiResponse = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
