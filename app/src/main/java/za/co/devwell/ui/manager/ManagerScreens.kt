@@ -112,17 +112,17 @@ fun ManagerHomeScreen(
         } else if (safe == null) {
             item {
                 DevWellCard {
-                    Text("Not enough responses", fontWeight = FontWeight.Bold)
+                    Text("Not enough participants", fontWeight = FontWeight.Bold)
                     Text(
                         "Team charts stay hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                                "responses. Current: ${aggregate.responseCount}",
+                                "participants. Current: ${aggregate.responseCount}",
                     )
                 }
             }
         } else {
             item {
                 DevWellCard {
-                    Text("${safe.responseCount} anonymous responses this period", fontWeight = FontWeight.Bold)
+                    Text("${safe.responseCount} anonymous participants this period", fontWeight = FontWeight.Bold)
                 }
             }
             item {
@@ -273,13 +273,13 @@ private val previewAggregate = TeamAggregate(
     averageFocus = 6.8,
 )
 
-@Preview(showBackground = true, name = "Hidden: 4 responses")
+@Preview(showBackground = true, name = "Hidden: 4 participants")
 @Composable
 private fun ManagerHomeHiddenPreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate.copy(responseCount = 4), {}, {}) }
 }
 
-@Preview(showBackground = true, name = "Visible: 5 responses")
+@Preview(showBackground = true, name = "Visible: 5 participants")
 @Composable
 private fun ManagerHomeVisiblePreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate, {}, {}) }
