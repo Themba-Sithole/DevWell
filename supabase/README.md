@@ -35,12 +35,13 @@ backend features are outside this Member 1 onboarding implementation.
 
 ## AI assistant
 
-The Android assistant sends an opted-in question to the authenticated `ai-assistant`
-Edge Function. It accepts only active accounts, limits prompts to 1,000 characters,
-does not store prompts, and keeps `GEMINI_API_KEY` in Edge Function secrets. The
-function calls Gemini Flash-Lite and returns a concise general wellbeing response. The
-free Gemini tier may use prompts and responses to improve Google products; disclose this
-to users and obtain consent before sending questions.
+The Android assistant sends a question to the `ai-assistant` Edge Function only
+after the user checks the consent box. Live requests require an active account; preview
+requests are limited by the Supabase gateway IP. Both are capped at 10 requests per hour
+per account or IP using a hashed identifier stored in a private table. Prompts are not
+stored. `GEMINI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` stay in Edge Function secrets;
+the latter is used only for the rate-limit RPC. The free Gemini tier may use prompts and
+responses to improve Google products, which the consent box discloses.
 
 ```text
 POST /functions/v1/submit-join-request
