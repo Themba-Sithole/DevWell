@@ -14,6 +14,7 @@ const reply = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: responseHeaders });
 
 type CheckInResponses = {
+  user_id?: unknown;
   wellbeing?: unknown;
   workload?: unknown;
   energy?: unknown;
@@ -139,14 +140,14 @@ export function createTeamAggregateHandler(config: Config, send: Fetcher = fetch
         ? members.map((member) => member?.id).filter((id): id is string => typeof id === "string" && uuid.test(id))
         : [];
 
-      const responses: CheckInResponses[] = [];
+      const responsesByMember = new Map<string, CheckInResponses[]>();
       const rangeStart = new Date(`${body.start_date}T00:00:00+02:00`).toISOString();
       const rangeEnd = new Date(Date.parse(`${body.end_date}T00:00:00+02:00`) + 86_400_000).toISOString();
       for (let index = 0; index < memberIds.length; index += 80) {
         const group = memberIds.slice(index, index + 80);
         for (let from = 0; ; from += 1000) {
           const checkInsUrl = new URL(`${config.url}/rest/v1/check_in`);
-          checkInsUrl.searchParams.set("select", "responses");
+          checkInsUrl.searchParams.set("select", "user_id,responses");
           checkInsUrl.searchParams.set("user_id", `in.(${group.join(",")})`);
           checkInsUrl.searchParams.set("created_at", `gte.${rangeStart}`);
           checkInsUrl.searchParams.set("and", `(created_at.lt.${rangeEnd})`);
@@ -158,25 +159,36 @@ export function createTeamAggregateHandler(config: Config, send: Fetcher = fetch
           const rows: unknown = await checkInsResponse.json();
           if (!Array.isArray(rows)) return reply(503, { error: "Team insights are temporarily unavailable." });
           rows.forEach((row) => {
-            if (row?.responses && typeof row.responses === "object" && !Array.isArray(row.responses)) {
-              responses.push(row.responses as CheckInResponses);
+            if (typeof row?.user_id === "string" && row?.responses && typeof row.responses === "object" && !Array.isArray(row.responses)) {
+              const memberResponses = responsesByMember.get(row.user_id) ?? [];
+              memberResponses.push(row.responses as CheckInResponses);
+              responsesByMember.set(row.user_id, memberResponses);
             }
           });
           if (rows.length < 1000) break;
         }
       }
 
-      if (responses.length < 5) {
-        return reply(200, { team_id: body.team_id, response_count: responses.length });
+      const participantCount = responsesByMember.size;
+      if (participantCount < 5) {
+        return reply(200, { team_id: body.team_id, response_count: participantCount });
       }
+      // Give each employee equal weight so repeated submissions cannot dominate the team average.
+      const participantAverages = [...responsesByMember.values()].map((memberResponses) => ({
+        wellbeing: average(memberResponses, "wellbeing", 1, 5),
+        workload: average(memberResponses, "workload", 1, 5),
+        energy: average(memberResponses, "energy", 1, 10),
+        focus: average(memberResponses, "focus", 1, 10),
+        afterHoursMinutes: average(memberResponses, "afterHoursMinutes", 0, 1440),
+      }));
       return reply(200, {
         team_id: body.team_id,
-        response_count: responses.length,
-        average_wellbeing: average(responses, "wellbeing", 1, 5),
-        average_workload: average(responses, "workload", 1, 5),
-        average_energy: average(responses, "energy", 1, 10),
-        average_focus: average(responses, "focus", 1, 10),
-        average_after_hours_minutes: average(responses, "afterHoursMinutes", 0, 1440),
+        response_count: participantCount,
+        average_wellbeing: average(participantAverages, "wellbeing", 1, 5),
+        average_workload: average(participantAverages, "workload", 1, 5),
+        average_energy: average(participantAverages, "energy", 1, 10),
+        average_focus: average(participantAverages, "focus", 1, 10),
+        average_after_hours_minutes: average(participantAverages, "afterHoursMinutes", 0, 1440),
       });
     } catch {
       // Never log or return tokens, service keys, row data, or raw backend errors.
