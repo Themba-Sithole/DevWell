@@ -194,7 +194,13 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             }
             composable(Routes.PRIVACY_PREVIEW) { PrivacyPreviewScreen(aggregate) }
             composable(Routes.AI_ASSISTANT) {
-                AiAssistantScreen(onAsk = viewModel::askAi)
+                AiAssistantScreen(
+                    onAsk = { question, isPreview, callback ->
+                        viewModel.askAi(question, isPreview, callback)
+                    },
+                    liveAssistantAvailable = !preview && user.status == AccountStatus.ACTIVE,
+                    previewAssistantAvailable = preview,
+                )
             }
             composable(Routes.ENGINEER_PROFILE) {
                 ProfileScreen(

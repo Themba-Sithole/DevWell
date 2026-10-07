@@ -116,8 +116,8 @@ class DevWellViewModel : ViewModel() {
         AppContainer.notifications.updatePreferences(prefs)
     }
 
-    fun askAi(question: String, onResult: (Result<String>) -> Unit) = viewModelScope.launch {
-        onResult(AppContainer.ai.ask(question))
+    fun askAi(question: String, preview: Boolean = false, onResult: (Result<String>) -> Unit) = viewModelScope.launch {
+        onResult(AppContainer.ai.ask(question, preview))
     }
 
     fun updateTeamSettings(team: Team) = viewModelScope.launch {

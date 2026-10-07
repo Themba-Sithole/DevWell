@@ -97,7 +97,11 @@ private fun PrefToggle(label: String, checked: Boolean, onChange: (Boolean) -> U
 }
 
 @Composable
-fun AiAssistantScreen(onAsk: (String, (Result<String>) -> Unit) -> Unit) {
+fun AiAssistantScreen(
+    onAsk: (String, Boolean, (Result<String>) -> Unit) -> Unit,
+    liveAssistantAvailable: Boolean = true,
+    previewAssistantAvailable: Boolean = false,
+) {
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -105,6 +109,13 @@ fun AiAssistantScreen(onAsk: (String, (Result<String>) -> Unit) -> Unit) {
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageTitle("DevWell assistant", "Guidance only — not professional advice")
+        if (liveAssistantAvailable || previewAssistantAvailable) Text(
+            "This free assistant sends questions to Google Gemini. Google may use questions and replies to improve its products. Avoid names or sensitive details.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        if (!liveAssistantAvailable && !previewAssistantAvailable) {
+            Text("Sign in with an active account to use the live AI assistant.")
+        }
         OutlinedTextField(
             value = question,
             onValueChange = { question = it },
@@ -117,12 +128,12 @@ fun AiAssistantScreen(onAsk: (String, (Result<String>) -> Unit) -> Unit) {
                 loading = true
                 error = null
                 answer = null
-                onAsk(question) { result ->
+                onAsk(question, previewAssistantAvailable) { result ->
                     loading = false
                     result.onSuccess { answer = it }.onFailure { error = it.message }
                 }
             },
-            enabled = question.isNotBlank() && !loading,
+            enabled = (liveAssistantAvailable || previewAssistantAvailable) && question.isNotBlank() && !loading,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (loading) "Thinking…" else "Ask") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

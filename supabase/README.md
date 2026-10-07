@@ -30,8 +30,17 @@ and when Refresh status is tapped. The directory is intentionally empty until re
 company/team names are available. No invented manager/admin accounts were left behind.
 
 Member 5 must replace `MockManagerRepository` with live approval calls. Other members'
-check-ins, projects, history, notifications and AI still use sample repositories;
-their backend features are outside this Member 1 onboarding implementation.
+check-ins, projects, history and notifications still use sample repositories; their
+backend features are outside this Member 1 onboarding implementation.
+
+## AI assistant
+
+The Android assistant sends an opted-in question to the authenticated `ai-assistant`
+Edge Function. It accepts only active accounts, limits prompts to 1,000 characters,
+does not store prompts, and keeps `GEMINI_API_KEY` in Edge Function secrets. The
+function calls Gemini Flash-Lite and returns a concise general wellbeing response. The
+free Gemini tier may use prompts and responses to improve Google products; disclose this
+to users and obtain consent before sending questions.
 
 ```text
 POST /functions/v1/submit-join-request
