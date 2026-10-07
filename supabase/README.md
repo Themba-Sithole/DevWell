@@ -30,8 +30,7 @@ branch only; neither has been deployed to the live project.
 
 Member 3's `team-aggregate` function source uses the signed-in user's token to verify
 active team membership, then uses the server-only service-role key to read check-ins
-for active engineers in that team. It returns only a response count below five and
-anonymous averages at five or more. The service-role key is never sent to Android.
+for active engineers in that team. It returns only a count of distinct employees below five; at five or more it returns averages computed by first averaging each employee's check-ins and then weighting each employee equally. The service-role key is never sent to Android.
 The function and app wiring must be reviewed and merged before anyone deploys it.
 The endpoint supports an inclusive local-date range; the app sends the same recent
 three-month range to the engineer preview and manager dashboard.
