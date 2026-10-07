@@ -46,7 +46,8 @@ function fakeFetch(checkInCount: number, callerRole = "engineer") {
     }
     if (url.pathname.endsWith("/rest/v1/user")) return Response.json(memberIds.slice(0, checkInCount).map((id) => ({ id })));
     if (url.pathname.endsWith("/rest/v1/check_in")) {
-      return Response.json(memberIds.slice(0, checkInCount).map((_, index) => ({
+      return Response.json(memberIds.slice(0, checkInCount).map((userId, index) => ({
+        user_id: userId,
         responses: { wellbeing: index + 1, workload: 3, energy: 6 + index, focus: 7, afterHoursMinutes: 30 },
       })));
     }
