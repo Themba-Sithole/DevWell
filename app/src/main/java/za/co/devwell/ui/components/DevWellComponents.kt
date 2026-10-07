@@ -26,7 +26,7 @@ fun DevWellCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.
 
 @Composable
 fun PrivacyNotice(
-    text: String = "Your individual check-ins are private. Managers only see anonymous team summaries after at least 5 responses.",
+    text: String = "Your individual check-ins are private. Managers only see anonymous team summaries after at least 5 participants.",
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Text(text, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onPrimaryContainer)
