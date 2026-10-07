@@ -453,6 +453,7 @@ class MockAdminRepository : AdminRepository {
 object AppContainer {
     private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
     private lateinit var wellbeingRepo: WellbeingRepository
+    private lateinit var managerRepo: ManagerRepository
     private var projectRepository: ProjectRepository = MockProjectRepository()
     private var aiRepository: AiGuidanceRepository = MockAiGuidanceRepository()
 
@@ -463,6 +464,7 @@ object AppContainer {
             aiRepository = if (client == null) MockAiGuidanceRepository() else SupabaseAiGuidanceRepository(client)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
             wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
+            managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
             projectRepository = if (client == null) {
                 MockProjectRepository()
             } else {
@@ -476,7 +478,7 @@ object AppContainer {
     val wellbeing: WellbeingRepository get() = wellbeingRepo
     val teamInsights: TeamInsightsRepository = MockTeamInsightsRepository()
     val projects: ProjectRepository get() = projectRepository
-    val manager: ManagerRepository = MockManagerRepository()
+    val manager: ManagerRepository get() = managerRepo
     val notifications: NotificationRepository = MockNotificationRepository()
     val ai: AiGuidanceRepository get() = aiRepository
     val admin: AdminRepository = MockAdminRepository()

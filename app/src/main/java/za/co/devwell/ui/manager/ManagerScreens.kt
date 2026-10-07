@@ -1,8 +1,10 @@
 package za.co.devwell.ui.manager
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -11,7 +13,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import za.co.devwell.model.JoinRequest
@@ -22,9 +26,57 @@ import za.co.devwell.model.TeamAggregate
 import za.co.devwell.ui.components.DevWellCard
 import za.co.devwell.ui.components.PageTitle
 import za.co.devwell.ui.components.PrivacyNotice
+import za.co.devwell.ui.theme.DevWellTheme
 import za.co.devwell.viewmodel.ManagerViewModel
 
 private fun Double?.oneDecimal(): String = this?.let { "%.1f".format(it) } ?: "-"
+
+/** One bar on the manager chart. Holds a team average only, never an individual score. */
+internal data class TeamChartBar(val label: String, val value: Double, val scaleMax: Int) {
+    /** Share of the track to fill, always within 0..1. */
+    val fraction: Float get() = (value / scaleMax).toFloat().coerceIn(0f, 1f)
+}
+
+/**
+ * Workload, energy and focus bars. Returns null below the anonymity threshold, so a chart
+ * can never be drawn from an unsafe aggregate. Missing or non-finite averages are skipped.
+ */
+internal fun teamChartBars(aggregate: TeamAggregate): List<TeamChartBar>? {
+    val safe = PrivacyPolicy.safeAggregateOrNull(aggregate) ?: return null
+    fun bar(label: String, value: Double?, max: Int) =
+        value?.takeIf { it.isFinite() }?.let { TeamChartBar(label, it, max) }
+    return listOfNotNull(
+        bar("Workload", safe.averageWorkload, 5),
+        bar("Energy", safe.averageEnergy, 10),
+        bar("Focus", safe.averageFocus, 10),
+    )
+}
+
+@Composable
+private fun TeamBarChart(bars: List<TeamChartBar>) {
+    DevWellCard {
+        Text("Workload, energy and focus", style = MaterialTheme.typography.titleMedium)
+        bars.forEach { bar ->
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(bar.label)
+                Text("${bar.value.oneDecimal()}/${bar.scaleMax}", fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(4.dp))
+            Box(
+                Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Box(Modifier.fillMaxWidth(bar.fraction).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Anonymous team averages. Workload: higher means heavier.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
 
 @Composable
 private fun FeedbackCard(error: String?, message: String?, onDismiss: () -> Unit) {
@@ -45,6 +97,7 @@ fun ManagerHomeScreen(
     onTeamSettings: () -> Unit,
 ) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
+    val bars = aggregate?.let { teamChartBars(it) }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -76,10 +129,10 @@ fun ManagerHomeScreen(
                 DevWellCard {
                     Text("Team averages", style = MaterialTheme.typography.titleMedium)
                     Text("Wellbeing ${safe.averageWellbeing.oneDecimal()}/5")
-                    Text("Workload ${safe.averageWorkload.oneDecimal()}/5")
-                    Text("Energy ${safe.averageEnergy.oneDecimal()}/10")
-                    Text("Focus ${safe.averageFocus.oneDecimal()}/10")
                 }
+            }
+            if (!bars.isNullOrEmpty()) {
+                item { TeamBarChart(bars) }
             }
         }
         item {
@@ -209,4 +262,25 @@ fun TeamSettingsRoute(viewModel: ManagerViewModel) {
         message = state.message,
         onDismissFeedback = viewModel::clearFeedback,
     )
+}
+
+private val previewAggregate = TeamAggregate(
+    teamId = "preview",
+    responseCount = 5,
+    averageWellbeing = 3.7,
+    averageWorkload = 3.9,
+    averageEnergy = 6.4,
+    averageFocus = 6.8,
+)
+
+@Preview(showBackground = true, name = "Hidden: 4 responses")
+@Composable
+private fun ManagerHomeHiddenPreview() {
+    DevWellTheme { ManagerHomeScreen(previewAggregate.copy(responseCount = 4), {}, {}) }
+}
+
+@Preview(showBackground = true, name = "Visible: 5 responses")
+@Composable
+private fun ManagerHomeVisiblePreview() {
+    DevWellTheme { ManagerHomeScreen(previewAggregate, {}, {}) }
 }
