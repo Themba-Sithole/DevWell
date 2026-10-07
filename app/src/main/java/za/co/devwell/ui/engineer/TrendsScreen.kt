@@ -204,10 +204,10 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?) {
             DevWellCard { Text("No team data available yet.") }
         } else if (safe == null) {
             DevWellCard {
-                Text("Not enough responses", fontWeight = FontWeight.Bold)
+                Text("Not enough participants", fontWeight = FontWeight.Bold)
                 Text(
                     "Team charts are hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                        "responses are available. Current responses: ${aggregate.responseCount}",
+                        "participants are available. Current participants: ${aggregate.responseCount}",
                 )
             }
         } else {
@@ -216,7 +216,7 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?) {
                 Text("Wellbeing ${safe.averageWellbeing.displayAverage()}/5")
                 Text("Workload ${safe.averageWorkload.displayAverage()}/5")
                 Text("Energy ${safe.averageEnergy.displayAverage()}/10 • Focus ${safe.averageFocus.displayAverage()}/10")
-                Text("Based on ${safe.responseCount} responses — no names or notes.")
+                Text("Based on ${safe.responseCount} participants — no names or notes.")
             }
         }
     }
