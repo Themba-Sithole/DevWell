@@ -2,7 +2,9 @@ package za.co.devwell.data
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.functions.invoke
 import io.github.jan.supabase.postgrest.from
+import io.ktor.client.call.body
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,6 +16,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import za.co.devwell.model.*
 import java.time.Instant
 import java.time.ZoneId
@@ -74,7 +78,7 @@ interface NotificationRepository {
 }
 
 interface AiGuidanceRepository {
-    suspend fun ask(question: String): Result<String>
+    suspend fun ask(question: String, preview: Boolean = false): Result<String>
 }
 
 interface AdminRepository {
@@ -386,13 +390,42 @@ class MockNotificationRepository : NotificationRepository {
 }
 
 class MockAiGuidanceRepository : AiGuidanceRepository {
-    override suspend fun ask(question: String): Result<String> {
+    override suspend fun ask(question: String, preview: Boolean): Result<String> {
         if (question.isBlank()) return Result.failure(IllegalArgumentException("Ask a question"))
         return Result.success(
             "Guidance only — not professional advice.\n\n" +
                     "Try protecting two 25-minute focus blocks and ending work at your planned time. " +
                     "If after-hours work stays high, raise it in a team retro without sharing individual scores."
         )
+    }
+}
+
+@Serializable
+private data class AiAssistantResponse(val answer: String)
+
+class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuidanceRepository {
+    override suspend fun ask(question: String, preview: Boolean): Result<String> = runCatching {
+        val cleanedQuestion = question.trim()
+        require(cleanedQuestion.isNotEmpty()) { "Ask a question first." }
+        require(cleanedQuestion.length <= 1000) { "Keep your question under 1,000 characters." }
+        val supabase = client ?: error("Supabase is not configured for this app.")
+        val response = try {
+            supabase.functions.invoke("ai-assistant", body = buildJsonObject {
+                put("question", cleanedQuestion)
+                put("consent", true)
+                put("preview", preview)
+            })
+        } catch (_: Exception) {
+            throw IllegalStateException("The assistant is temporarily unavailable. Please retry.")
+        }
+        val responseBody = try {
+            response.body<AiAssistantResponse>()
+        } catch (_: Exception) {
+            throw IllegalStateException("The assistant is temporarily unavailable. Please retry.")
+        }
+        responseBody.answer.trim().also {
+            require(it.isNotEmpty()) { "The assistant returned an empty response. Please retry." }
+        }
     }
 }
 
@@ -427,11 +460,13 @@ object AppContainer {
     private lateinit var managerRepo: ManagerRepository
     private lateinit var teamInsightsRepo: TeamInsightsRepository
     private var projectRepository: ProjectRepository = MockProjectRepository()
+    private var aiRepository: AiGuidanceRepository = MockAiGuidanceRepository()
 
     fun initialize(context: android.content.Context) {
         if (!::identity.isInitialized) {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
             val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
+            aiRepository = if (client == null) MockAiGuidanceRepository() else SupabaseAiGuidanceRepository(client)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
             wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
@@ -455,6 +490,6 @@ object AppContainer {
     val projects: ProjectRepository get() = projectRepository
     val manager: ManagerRepository get() = managerRepo
     val notifications: NotificationRepository = MockNotificationRepository()
-    val ai: AiGuidanceRepository = MockAiGuidanceRepository()
+    val ai: AiGuidanceRepository get() = aiRepository
     val admin: AdminRepository = MockAdminRepository()
 }
