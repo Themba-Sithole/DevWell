@@ -30,8 +30,19 @@ internal fun Brand(modifier: Modifier = Modifier) {
 
 @Composable
 internal fun PrimaryAction(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick, modifier.heightIn(min = 52.dp), enabled = enabled, shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = AuthGreen)) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 52.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 1.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = AuthGreen,
+            contentColor = Color.White,
+            disabledContainerColor = Color(0xFFB7C8BC),
+            disabledContentColor = Color.White,
+        )
+    ) {
         Text(text, fontWeight = FontWeight.SemiBold)
     }
 }
