@@ -391,3 +391,6 @@ verify_jwt = true
 
 [functions.team-aggregate]
 verify_jwt = true
+
+[functions.ai-assistant]
+verify_jwt = true
