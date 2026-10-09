@@ -2,7 +2,7 @@ package za.co.devwell.data
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.functions.invoke
+import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.ktor.client.call.body
 import kotlinx.coroutines.CoroutineScope
