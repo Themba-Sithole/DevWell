@@ -44,13 +44,14 @@ import za.co.devwell.model.PrivacyPolicy
 import za.co.devwell.model.TeamAggregate
 import za.co.devwell.model.TrendsAnalysis
 import za.co.devwell.model.TrendsPeriod
-import za.co.devwell.ui.components.DevWellCard
-import za.co.devwell.ui.components.PageTitle
-import za.co.devwell.ui.components.PrivacyNotice
+import za.co.devwell.ui.components.*
+import za.co.devwell.ui.theme.*
 import java.util.Locale
 
+private val WELLBEING_LABELS = listOf("Struggling", "Not great", "Okay", "Good", "Great")
+
 @Composable
-fun TrendsScreen(checkIns: List<CheckIn>) {
+fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
     var selectedPeriodName by rememberSaveable { mutableStateOf(TrendsPeriod.THIS_WEEK.name) }
     val selectedPeriod = TrendsPeriod.entries.firstOrNull { it.name == selectedPeriodName }
         ?: TrendsPeriod.THIS_WEEK
@@ -62,7 +63,7 @@ fun TrendsScreen(checkIns: List<CheckIn>) {
         Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { PageTitle("Personal trends", "Your private check-in history") }
+        item { BackHeader("Your trends", "Your private check-in history", onBack) }
         item {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -90,135 +91,110 @@ fun TrendsScreen(checkIns: List<CheckIn>) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SummaryCard("Avg wellbeing", summary.averageWellbeing, "/5", Modifier.weight(1f))
-                        SummaryCard("Avg workload", summary.averageWorkload, "/5", Modifier.weight(1f))
+                        StatCard("Avg wellbeing", formatAverage(summary.averageWellbeing, "/5"), Modifier.weight(1f))
+                        StatCard("Avg workload", formatAverage(summary.averageWorkload, "/5"), Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SummaryCard("Avg energy", summary.averageEnergy, "/10", Modifier.weight(1f))
-                        SummaryCard("Avg focus", summary.averageFocus, "/10", Modifier.weight(1f))
+                        StatCard("Avg energy", formatAverage(summary.averageEnergy, "/10"), Modifier.weight(1f))
+                        StatCard("Avg focus", formatAverage(summary.averageFocus, "/10"), Modifier.weight(1f))
                     }
                 }
             }
-            item {
-                TrendLineCard(
-                    title = "Workload over time",
-                    unit = "/5",
-                    values = visibleCheckIns.map { it.dateLabel to it.values.workload.toFloat() },
-                    maximum = 5f,
-                )
-            }
-            item {
-                TrendLineCard(
-                    title = "Energy and focus",
-                    unit = "/10",
-                    values = visibleCheckIns.map { it.dateLabel to it.values.energy.toFloat() },
-                    secondValues = visibleCheckIns.map { it.dateLabel to it.values.focus.toFloat() },
-                    maximum = 10f,
-                    secondLabel = "Focus",
-                )
-            }
-            item {
-                Text("Check-ins", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            items(visibleCheckIns.asReversed(), key = { it.id }) { item ->
-                DevWellCard {
-                    Text(item.dateLabel, fontWeight = FontWeight.Bold)
-                    Text("Wellbeing ${item.values.wellbeing}/5 • Workload ${item.values.workload}/5")
-                    Text("Energy ${item.values.energy}/10 • Focus ${item.values.focus}/10")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryCard(label: String, value: Double?, scale: String, modifier: Modifier = Modifier) {
-    DevWellCard(modifier = modifier) {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        Text(
-            text = "${value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"}$scale",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun TrendLineCard(
-    title: String,
-    unit: String,
-    values: List<Pair<String, Float>>,
-    maximum: Float,
-    secondValues: List<Pair<String, Float>> = emptyList(),
-    secondLabel: String = "",
-) {
-    val primary = MaterialTheme.colorScheme.primary
-    val secondary = MaterialTheme.colorScheme.tertiary
-    val grid = MaterialTheme.colorScheme.outlineVariant
-    val description = buildString {
-        append(title)
-        values.forEach { (date, value) -> append(". $date: ${value.toInt()}$unit") }
-        secondValues.forEach { (date, value) -> append(". $date $secondLabel: ${value.toInt()}$unit") }
-    }
-    DevWellCard {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
-        Canvas(
-            Modifier.fillMaxWidth().height(150.dp).semantics { contentDescription = description },
-        ) {
-            val inset = 14.dp.toPx()
-            val chartWidth = (size.width - inset * 2).coerceAtLeast(1f)
-            val chartHeight = (size.height - inset * 2).coerceAtLeast(1f)
-            for (line in 0..2) {
-                val y = inset + chartHeight * line / 2f
-                drawLine(grid, Offset(inset, y), Offset(size.width - inset, y), strokeWidth = 1.dp.toPx())
-            }
-            fun drawSeries(series: List<Pair<String, Float>>, color: androidx.compose.ui.graphics.Color) {
-                if (series.isEmpty()) return
-                val points = series.mapIndexed { index, (_, value) ->
-                    val x = if (series.size == 1) size.width / 2f
-                    else inset + chartWidth * index / (series.size - 1)
-                    val y = inset + chartHeight * (1f - (value / maximum).coerceIn(0f, 1f))
-                    Offset(x, y)
-                }
-                if (points.size > 1) {
-                    val path = Path().apply {
-                        moveTo(points.first().x, points.first().y)
-                        points.drop(1).forEach { lineTo(it.x, it.y) }
+            if (visibleCheckIns.size >= 2) {
+                item {
+                    DevWellCard {
+                        Text("Wellbeing", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Text(
+                            "Your ${selectedPeriod.label.lowercase(Locale.ROOT)} check-ins",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        LineChart(
+                            values = visibleCheckIns.takeLast(12).map { it.values.wellbeing.toFloat() },
+                            max = 5f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp)
+                                .semantics {
+                                    contentDescription = buildString {
+                                        append("Wellbeing over time")
+                                        visibleCheckIns.takeLast(12).forEach {
+                                            append(". ${it.dateLabel}: ${it.values.wellbeing}/5")
+                                        }
+                                    }
+                                },
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row {
+                            Text(
+                                visibleCheckIns.first().dateLabel,
+                                Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = InkMuted,
+                            )
+                            Text(
+                                visibleCheckIns.last().dateLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = InkMuted,
+                            )
+                        }
                     }
-                    drawPath(path, color, style = Stroke(width = 3.dp.toPx()))
                 }
-                points.forEach { drawCircle(color, radius = 5.dp.toPx(), center = it) }
-            }
-            drawSeries(values, primary)
-            drawSeries(secondValues, secondary)
-        }
-        if (values.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(values.first().first, style = MaterialTheme.typography.labelSmall)
-                Text(values.last().first, style = MaterialTheme.typography.labelSmall)
-            }
-        }
-        if (secondValues.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("● Energy", color = primary, style = MaterialTheme.typography.labelMedium)
-                Text("● $secondLabel", color = secondary, style = MaterialTheme.typography.labelMedium)
+                item {
+                    DevWellCard {
+                        Text("Energy and focus", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Text(
+                            "Daily scores out of 10",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        GroupedBarChart(
+                            seriesA = visibleCheckIns.takeLast(12).map { it.values.energy.toFloat() },
+                            seriesB = visibleCheckIns.takeLast(12).map { it.values.focus.toFloat() },
+                            max = 10f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp)
+                                .semantics {
+                                    contentDescription = buildString {
+                                        append("Energy and focus over time")
+                                        visibleCheckIns.takeLast(12).forEach {
+                                            append(". ${it.dateLabel}: energy ${it.values.energy}/10")
+                                            append(", focus ${it.values.focus}/10")
+                                        }
+                                    }
+                                },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            LegendDot(DevGreen)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Energy", style = MaterialTheme.typography.labelSmall, color = InkMuted)
+                            Spacer(Modifier.width(14.dp))
+                            LegendDot(LightGreen)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Focus", style = MaterialTheme.typography.labelSmall, color = InkMuted)
+                        }
+                    }
+                }
             }
             item { SectionLabel("Check-in history") }
-            items(checkIns.reversed()) { item ->
-                val wellbeing = item.values.wellbeing
+            items(visibleCheckIns.asReversed(), key = { it.id }) { checkIn ->
+                val wellbeing = checkIn.values.wellbeing
                 DevWellCard(padding = 14.dp) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(item.dateLabel, style = MaterialTheme.typography.titleSmall, color = Ink)
+                            Text(checkIn.dateLabel, style = MaterialTheme.typography.titleSmall, color = Ink)
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Energy ${item.values.energy}/10 · Focus ${item.values.focus}/10",
+                                "Energy ${checkIn.values.energy}/10 · Focus ${checkIn.values.focus}/10",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InkMuted,
                             )
                             Text(
-                                "Workload ${item.values.workload}/5",
+                                "Workload ${checkIn.values.workload}/5",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InkMuted,
                             )
@@ -237,6 +213,9 @@ private fun TrendLineCard(
         }
     }
 }
+
+private fun formatAverage(value: Double?, suffix: String): String =
+    value?.let { String.format(Locale.ROOT, "%.1f%s", it, suffix) } ?: "—"
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
