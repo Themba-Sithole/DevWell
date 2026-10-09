@@ -1,17 +1,30 @@
 package za.co.devwell.ui.navigation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
-import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import za.co.devwell.ui.theme.AccentSurface
+import za.co.devwell.ui.theme.CardWhite
+import za.co.devwell.ui.theme.DevGreen
+import za.co.devwell.ui.theme.InkMuted
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -26,15 +39,22 @@ import za.co.devwell.ui.auth.OnboardingScreen
 import za.co.devwell.ui.auth.PendingApprovalScreen
 import za.co.devwell.ui.engineer.CheckInScreen
 import za.co.devwell.ui.engineer.EngineerHomeScreen
+import za.co.devwell.ui.engineer.EngineerInsightsScreen
 import za.co.devwell.ui.engineer.PrivacyPreviewScreen
+import za.co.devwell.ui.engineer.TeamOverviewScreen
 import za.co.devwell.ui.engineer.TrendsScreen
 import za.co.devwell.ui.manager.JoinRequestsRoute
 import za.co.devwell.ui.manager.ManagerHomeScreen
+import za.co.devwell.ui.manager.ManagerInsightsScreen
+import za.co.devwell.ui.manager.ManagerTeamScreen
 import za.co.devwell.ui.manager.TeamSettingsRoute
 import za.co.devwell.ui.projects.ProjectsScreen
 import za.co.devwell.ui.settings.AiAssistantScreen
+import za.co.devwell.ui.settings.ExercisesScreen
 import za.co.devwell.ui.settings.NotificationsScreen
+import za.co.devwell.ui.settings.PrivacySettingsScreen
 import za.co.devwell.ui.settings.ProfileScreen
+import za.co.devwell.ui.settings.WellbeingTipsScreen
 import za.co.devwell.viewmodel.DevWellViewModel
 import za.co.devwell.viewmodel.ManagerViewModel
 import za.co.devwell.viewmodel.ManagerViewModelFactory
@@ -43,7 +63,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import za.co.devwell.notifications.NotificationScheduler
 
-private data class TabItem(val route: String, val label: String, val icon: ImageVector)
+private data class TabItem(val route: String, val label: String, val icon: ImageVector, val fab: Boolean = false)
 
 @Composable
 fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
@@ -89,20 +109,23 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBottomBar = currentRoute in setOf(
-        Routes.ENGINEER_HOME, Routes.TRENDS, Routes.PROJECTS, Routes.ENGINEER_PROFILE,
-        Routes.MANAGER_HOME, Routes.MANAGER_PROFILE,
+        Routes.ENGINEER_HOME, Routes.PROJECTS, Routes.AI_ASSISTANT, Routes.ENGINEER_PROFILE,
+        Routes.MANAGER_HOME, Routes.MANAGER_TEAM, Routes.MANAGER_INSIGHTS, Routes.MANAGER_PROFILE,
         Routes.ADMIN_HOME, Routes.ADMIN_PROFILE,
     )
 
     val tabs = when (user.role) {
         UserRole.ENGINEER -> listOf(
             TabItem(Routes.ENGINEER_HOME, "Home", Icons.Outlined.Home),
-            TabItem(Routes.TRENDS, "Trends", Icons.AutoMirrored.Outlined.ShowChart),
-            TabItem(Routes.PROJECTS, "Projects", Icons.Outlined.Checklist),
+            TabItem(Routes.PROJECTS, "Projects", Icons.Outlined.Folder),
+            TabItem(Routes.CHECK_IN, "Check-in", Icons.Outlined.CheckCircle, fab = true),
+            TabItem(Routes.AI_ASSISTANT, "AI", Icons.Outlined.AutoAwesome),
             TabItem(Routes.ENGINEER_PROFILE, "Profile", Icons.Outlined.Person),
         )
         UserRole.MANAGER -> listOf(
-            TabItem(Routes.MANAGER_HOME, "Dashboard", Icons.Outlined.Dashboard),
+            TabItem(Routes.MANAGER_HOME, "Overview", Icons.Outlined.Home),
+            TabItem(Routes.MANAGER_TEAM, "Team", Icons.Outlined.Groups),
+            TabItem(Routes.MANAGER_INSIGHTS, "Insights", Icons.Outlined.Lightbulb),
             TabItem(Routes.MANAGER_PROFILE, "Profile", Icons.Outlined.Person),
         )
         UserRole.ADMIN -> listOf(
@@ -118,7 +141,10 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
         },
         bottomBar = {
             if (showBottomBar && tabs.isNotEmpty()) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = CardWhite,
+                    contentColor = DevGreen,
+                ) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
                             selected = currentRoute == tab.route,
@@ -129,8 +155,30 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                if (tab.fab) {
+                                    Box(
+                                        Modifier.size(40.dp)
+                                            .background(DevGreen, CircleShape),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            tab.icon, contentDescription = tab.label,
+                                            Modifier.size(22.dp), tint = Color.White,
+                                        )
+                                    }
+                                } else {
+                                    Icon(tab.icon, contentDescription = tab.label)
+                                }
+                            },
                             label = { Text(tab.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = DevGreen,
+                                unselectedIconColor = InkMuted,
+                                selectedTextColor = DevGreen,
+                                unselectedTextColor = InkMuted,
+                                indicatorColor = AccentSurface,
+                            ),
                         )
                     }
                 }
@@ -155,7 +203,10 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         navController.navigate(Routes.CHECK_IN) { launchSingleTop = true }
                     },
                     onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
-                    onAiAssistant = { navController.navigate(Routes.AI_ASSISTANT) },
+                    onTrends = { navController.navigate(Routes.TRENDS) },
+                    onInsights = { navController.navigate(Routes.INSIGHTS) },
+                    onTeamOverview = { navController.navigate(Routes.TEAM_OVERVIEW) },
+                    onProfile = { navController.navigate(Routes.ENGINEER_PROFILE) },
                 )
             }
                 composable(Routes.CHECK_IN) {
@@ -181,7 +232,15 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         errorMessage = (checkInState as? za.co.devwell.viewmodel.SaveState.Error)?.message,
                     )
                 }
-            composable(Routes.TRENDS) { TrendsScreen(checkIns) }
+            composable(Routes.TRENDS) {
+                TrendsScreen(checkIns, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.INSIGHTS) {
+                EngineerInsightsScreen(checkIns, user.name, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.TEAM_OVERVIEW) {
+                TeamOverviewScreen(aggregate, onBack = { navController.popBackStack() })
+            }
             composable(Routes.PROJECTS) {
                 ProjectsScreen(
                     projects = projects,
@@ -194,7 +253,9 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onDeleteTask = viewModel::deleteTask,
                 )
             }
-            composable(Routes.PRIVACY_PREVIEW) { PrivacyPreviewScreen(aggregate) }
+            composable(Routes.PRIVACY_PREVIEW) {
+                PrivacyPreviewScreen(aggregate, onBack = { navController.popBackStack() })
+            }
             composable(Routes.AI_ASSISTANT) {
                 AiAssistantScreen(
                     onAsk = { question, isPreview, callback ->
@@ -205,10 +266,22 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 )
             }
             composable(Routes.ENGINEER_PROFILE) {
+                val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.ENGINEER,
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = onSignOut,
+                    name = user.name,
+                    email = user.email,
+                    prefs = notificationPrefs,
+                    onToggleDaily = { enabled ->
+                        val updated = notificationPrefs.copy(dailyEnabled = enabled)
+                        viewModel.updateNotificationPrefs(updated)
+                        NotificationScheduler.applyPreferences(context, updated)
+                    },
+                    onTips = { navController.navigate(Routes.TIPS) },
+                    onExercises = { navController.navigate(Routes.EXERCISES) },
+                    onPrivacySettings = { navController.navigate(Routes.PRIVACY_SETTINGS) },
                 )
             }
             }
@@ -219,8 +292,18 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     aggregate = aggregate,
                     onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
+                    onProfile = { navController.navigate(Routes.MANAGER_PROFILE) },
+                    managerName = user.name,
                 )
             }
+            composable(Routes.MANAGER_TEAM) {
+                ManagerTeamScreen(
+                    aggregate = aggregate,
+                    onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
+                    onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
+                )
+            }
+            composable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }
             composable(Routes.JOIN_REQUESTS) {
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
                 JoinRequestsRoute(managerViewModel)
@@ -230,10 +313,21 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 TeamSettingsRoute(managerViewModel)
             }
             composable(Routes.MANAGER_PROFILE) {
+                val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.MANAGER,
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = onSignOut,
+                    name = user.name,
+                    email = user.email,
+                    prefs = notificationPrefs,
+                    onToggleDaily = { enabled ->
+                        val updated = notificationPrefs.copy(dailyEnabled = enabled)
+                        viewModel.updateNotificationPrefs(updated)
+                        NotificationScheduler.applyPreferences(context, updated)
+                    },
+                    onPrivacySettings = { navController.navigate(Routes.PRIVACY_SETTINGS) },
+                    onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
                 )
             }
 
@@ -248,10 +342,20 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 )
             }
             composable(Routes.ADMIN_PROFILE) {
+                val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.ADMIN,
                     onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = onSignOut,
+                    name = user.name,
+                    email = user.email,
+                    prefs = notificationPrefs,
+                    onToggleDaily = { enabled ->
+                        val updated = notificationPrefs.copy(dailyEnabled = enabled)
+                        viewModel.updateNotificationPrefs(updated)
+                        NotificationScheduler.applyPreferences(context, updated)
+                    },
+                    onPrivacySettings = { navController.navigate(Routes.PRIVACY_SETTINGS) },
                 )
             }
             }
@@ -263,6 +367,19 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         viewModel.updateNotificationPrefs(prefs)
                         NotificationScheduler.applyPreferences(context, prefs)
                     },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.TIPS) {
+                WellbeingTipsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.EXERCISES) {
+                ExercisesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.PRIVACY_SETTINGS) {
+                PrivacySettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
                 )
             }
 

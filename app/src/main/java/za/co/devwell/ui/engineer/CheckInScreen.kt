@@ -1,17 +1,31 @@
 package za.co.devwell.ui.engineer
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.CheckInDraft
-import za.co.devwell.ui.components.PageTitle
+import za.co.devwell.ui.auth.AuthFeedback
+import za.co.devwell.ui.components.ButtonVariant
+import za.co.devwell.ui.components.DevWellButton
+import za.co.devwell.ui.components.DevWellCard
+import za.co.devwell.ui.components.DevWellDivider
+import za.co.devwell.ui.components.DevWellTextField
 import za.co.devwell.ui.components.PrivacyNotice
+import za.co.devwell.ui.components.SegmentedProgress
+import za.co.devwell.ui.theme.*
 
 /**
  * Member 2 — Five-step wellbeing check-in (FR4, Story 1).
@@ -73,52 +87,78 @@ fun CheckInScreen(
         else -> true
     }
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        TextButton(onClick = onCancel, enabled = !isSaving) { Text("Close") }
-        LinearProgressIndicator(progress = { step / 5f }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(12.dp))
-        Text("Step $step of 5", color = MaterialTheme.colorScheme.primary)
-        PageTitle(titles[step - 1])
-        Box(Modifier.weight(1f)) {
+    Column(Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onCancel, enabled = !isSaving) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Close check-in")
+            }
+            Text("Check-in", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Spacer(Modifier.weight(1f))
+            Text("Step $step of 5", style = MaterialTheme.typography.labelMedium, color = InkMuted)
+        }
+        Spacer(Modifier.height(8.dp))
+        SegmentedProgress(total = 5, current = step)
+        Spacer(Modifier.height(20.dp))
+        Text(titles[step - 1], style = MaterialTheme.typography.headlineMedium, color = Ink)
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             when (step) {
                 1 -> ChoiceStep("How are you feeling today?", WELLBEING_CHOICES, wellbeing) { wellbeing = it }
                 2 -> ChoiceStep("How was your workload yesterday?", WORKLOAD_CHOICES, workload) { workload = it }
-                3 -> Column {
-                    Text("Energy: ${energy.toInt()}/10")
-                    Slider(value = energy, onValueChange = { energy = it }, valueRange = 1f..10f, steps = 8)
-                    Spacer(Modifier.height(24.dp))
-                    Text("Focus: ${focus.toInt()}/10")
-                    Slider(value = focus, onValueChange = { focus = it }, valueRange = 1f..10f, steps = 8)
+                3 -> Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    SliderGroup("⚡ Energy", energy) { energy = it }
+                    SliderGroup("🎯 Focus", focus) { focus = it }
                 }
-                4 -> ChoiceStep("How much did you work after hours?", AFTER_HOURS_CHOICES, afterHours) { afterHours = it }
+                4 -> Column {
+                    ChoiceStep("How much did you work after hours?", AFTER_HOURS_CHOICES, afterHours) { afterHours = it }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "This stays private and helps your team spot patterns.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                    )
+                }
                 else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PrivacyNotice("Only you can view this individual response.")
-                    Text("Feeling: ${WELLBEING_CHOICES.getOrElse(wellbeing) { "-" }}")
-                    Text("Workload yesterday: ${WORKLOAD_CHOICES.getOrElse(workload) { "-" }}")
-                    Text("Energy: ${energy.toInt()}/10 • Focus: ${focus.toInt()}/10")
-                    Text("After-hours work: ${AFTER_HOURS_CHOICES.getOrElse(afterHours) { "-" }}")
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { if (it.length <= NOTE_MAX_LENGTH) note = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Optional private note") },
-                        supportingText = { Text("${note.length}/$NOTE_MAX_LENGTH") },
-                        minLines = 3,
+                    DevWellCard(padding = 16.dp) {
+                        ReviewRow("Feeling", WELLBEING_CHOICES.getOrElse(wellbeing) { "-" })
+                        DevWellDivider()
+                        ReviewRow("Workload yesterday", WORKLOAD_CHOICES.getOrElse(workload) { "-" })
+                        DevWellDivider()
+                        ReviewRow("Energy and focus", "${energy.toInt()}/10 · ${focus.toInt()}/10")
+                        DevWellDivider()
+                        ReviewRow("After-hours work", AFTER_HOURS_CHOICES.getOrElse(afterHours) { "-" })
+                    }
+                    DevWellTextField(
+                        note,
+                        { if (it.length <= NOTE_MAX_LENGTH) note = it },
+                        label = "Optional private note",
+                        singleLine = false,
+                        maxLines = 4,
                         enabled = !isSaving,
                     )
-                    if (errorMessage != null) {
-                        Text(errorMessage, color = MaterialTheme.colorScheme.error)
-                    }
+                    Text(
+                        "${note.length}/$NOTE_MAX_LENGTH",
+                        Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = InkMuted,
+                        textAlign = TextAlign.End,
+                    )
+                    PrivacyNotice("Only you can view this individual response.")
+                    AuthFeedback(error = errorMessage)
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(
+            DevWellButton(
+                "Back",
                 onClick = { if (step == 1) onCancel() else step-- },
-                enabled = !isSaving,
                 modifier = Modifier.weight(1f),
-            ) { Text("Back") }
-            Button(
+                enabled = !isSaving,
+                variant = ButtonVariant.Outline,
+            )
+            DevWellButton(
+                if (isSaving) "Saving..." else if (step < 5) "Next" else "View my trends",
                 onClick = {
                     if (step < 5) {
                         step++
@@ -126,15 +166,9 @@ fun CheckInScreen(
                         onSubmit(buildCheckInDraft(wellbeing, workload, energy, focus, afterHours, note))
                     }
                 },
-                enabled = canProceed && !isSaving,
                 modifier = Modifier.weight(1f),
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(if (step < 5) "Next" else "Submit")
-                }
-            }
+                enabled = canProceed && !isSaving,
+            )
         }
     }
 }
@@ -146,25 +180,82 @@ private fun ChoiceStep(
     selected: Int,
     onSelect: (Int) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(question, style = MaterialTheme.typography.titleLarge)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(question, style = MaterialTheme.typography.titleLarge, color = Ink)
         choices.forEachIndexed { index, label ->
+            val isSelected = selected == index
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .selectable(selected = selected == index, onClick = { onSelect(index) }),
-                shape = RoundedCornerShape(16.dp),
-                color = if (selected == index) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
+                    .selectable(selected = isSelected, onClick = { onSelect(index) }),
+                shape = RoundedCornerShape(12.dp),
+                color = if (isSelected) AccentSurface else CardWhite,
+                border = androidx.compose.foundation.BorderStroke(
+                    if (isSelected) 2.dp else 1.dp,
+                    if (isSelected) DevGreen else BorderGreen,
+                ),
             ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = selected == index, onClick = { onSelect(index) })
-                    Text(label)
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(
+                        selected = isSelected,
+                        onClick = { onSelect(index) },
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = DevGreen,
+                            unselectedColor = BorderGreen,
+                        ),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (isSelected) DevGreen else Ink,
+                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SliderGroup(label: String, value: Float, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, color = Ink)
+        Text("${value.toInt()}/10", style = MaterialTheme.typography.headlineSmall, color = DevGreen)
+    }
+    Slider(
+        value = value,
+        onValueChange = onChange,
+        valueRange = 1f..10f,
+        steps = 8,
+        colors = SliderDefaults.colors(
+            thumbColor = DevGreen,
+            activeTrackColor = DevGreen,
+            inactiveTrackColor = TrackGreen,
+            activeTickColor = Color.Transparent,
+            inactiveTickColor = Color.Transparent,
+        ),
+    )
+    Row {
+        Text("Low", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = InkMuted)
+        Text("High", style = MaterialTheme.typography.labelSmall, color = InkMuted)
+    }
+}
+
+@Composable
+private fun ReviewRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = InkMuted)
+        Text(
+            value,
+            Modifier.weight(1.2f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = Ink,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End,
+        )
     }
 }
