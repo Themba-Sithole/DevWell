@@ -220,12 +220,12 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
             }
             safe == null -> {
                 DevWellCard {
-                    Text("Not enough responses", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Team insights become available when at least " +
                             "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} team members have checked in. " +
-                            "Current responses: ${aggregate.responseCount}",
+                        "Current participants: ${aggregate.responseCount}",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted,
                     )
@@ -270,7 +270,7 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "${safe.responseCount} anonymous responses this period",
+                            "${safe.responseCount} anonymous participants this period",
                             style = MaterialTheme.typography.bodySmall,
                             color = InkMuted,
                         )
@@ -295,7 +295,7 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
                     )
                     TeamMiniStat(
                         value = safe.responseCount.toString(),
-                        label = "Checked in",
+                        label = "Participants",
                         modifier = Modifier.weight(1f),
                     )
                 }

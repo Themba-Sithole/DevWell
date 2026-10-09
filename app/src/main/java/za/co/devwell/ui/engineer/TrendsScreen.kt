@@ -363,10 +363,10 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
                 if (aggregate == null) {
                     Text("No team data available yet.", style = MaterialTheme.typography.bodyMedium, color = InkMuted)
                 } else if (safe == null) {
-                    Text("Not enough responses", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
                     Text(
                         "Team charts are hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                            "responses are available. Current responses: ${aggregate.responseCount}",
+                            "distinct participants are available. Current participants: ${aggregate.responseCount}",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted,
                     )
@@ -377,7 +377,7 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
                     MetricRow("Focus", safe.averageFocus, " / 10")
                     DevWellDivider()
                     Text(
-                        "Based on ${safe.responseCount} responses — no names or notes.",
+                        "Based on ${safe.responseCount} participants — no names or notes.",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted,
                     )

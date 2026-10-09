@@ -175,11 +175,11 @@ fun ManagerHomeScreen(
         } else if (safe == null) {
             item {
                 DevWellCard {
-                    Text("Not enough responses", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Team charts stay hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                            "responses. Current: ${aggregate.responseCount}",
+                            "distinct participants. Current participants: ${aggregate.responseCount}",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted,
                     )
@@ -221,7 +221,7 @@ fun ManagerHomeScreen(
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "${safe.responseCount} anonymous responses this period",
+                                "${safe.responseCount} anonymous participants this period",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InkMuted,
                             )
@@ -248,7 +248,7 @@ fun ManagerHomeScreen(
                     )
                     MiniStat(
                         value = safe.responseCount.toString(),
-                        label = "Responses",
+                        label = "Participants",
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -268,8 +268,8 @@ fun ManagerHomeScreen(
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                "Team insights are shown because ${safe.responseCount} responses are " +
-                                    "available (minimum threshold: ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES}).",
+                                "Team insights are shown because ${safe.responseCount} distinct participants " +
+                                    "meet the minimum threshold of ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES}.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = InkMuted,
                             )
@@ -675,12 +675,12 @@ fun ManagerTeamScreen(
             }
             safe == null -> item {
                 DevWellCard {
-                    Text("Not enough responses", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Team insights become available when at least " +
                             "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} team members have checked in. " +
-                            "Current responses: ${aggregate.responseCount}",
+                            "Current participants: ${aggregate.responseCount}",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted,
                     )
@@ -733,7 +733,7 @@ fun ManagerTeamScreen(
                             "After-hours",
                             Modifier.weight(1f),
                         )
-                        MiniStat(safe.responseCount.toString(), "Checked in", Modifier.weight(1f))
+                        MiniStat(safe.responseCount.toString(), "Participants", Modifier.weight(1f))
                     }
                 }
                 if (!bars.isNullOrEmpty()) {
@@ -893,13 +893,13 @@ private val previewAggregate = TeamAggregate(
     averageFocus = 6.8,
 )
 
-@Preview(showBackground = true, name = "Hidden: 4 responses")
+@Preview(showBackground = true, name = "Hidden: 4 participants")
 @Composable
 private fun ManagerHomeHiddenPreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate.copy(responseCount = 4), {}, {}) }
 }
 
-@Preview(showBackground = true, name = "Visible: 5 responses")
+@Preview(showBackground = true, name = "Visible: 5 participants")
 @Composable
 private fun ManagerHomeVisiblePreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate, {}, {}) }
