@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
@@ -51,13 +52,13 @@ fun OnboardingScreen(state: AuthUiState, onSubmit: (String, String) -> Unit, onR
                 style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("Let's connect you to your team.", color = Color(0xFFC1D7BD), modifier = Modifier.padding(top = 4.dp))
             Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(3) { index -> Box(Modifier.weight(1f).height(4.dp).background(if (index < step) Color.White else Color(0xFF709174), CircleShape)) }
+                repeat(3) { index -> Box(Modifier.weight(1f).height(6.dp).background(if (index < step) Color.White else Color(0xFF709174), CircleShape)) }
             }
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("STEP $step OF 3", style = MaterialTheme.typography.labelMedium, color = AuthMuted)
             Text(when(step) { 1 -> "Which company do you work for?"; 2 -> "Which team are you on?"; else -> "Confirm your details" },
-                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(when(step) { 1 -> "Select your employer. Your manager will verify your access."; 2 -> "Teams within ${company?.name.orEmpty()}"; else -> "Your manager will receive a request to approve your access." },
                 style = MaterialTheme.typography.bodySmall, color = AuthMuted)
             AuthFeedback(state.error, state.message)
@@ -104,21 +105,11 @@ fun OnboardingScreen(state: AuthUiState, onSubmit: (String, String) -> Unit, onR
 
 @Composable
 private fun SelectionCard(title: String, subtitle: String, selected: Boolean, enabled: Boolean, initials: String?, onClick: () -> Unit) {
-    Surface(
-        shape = AuthShape,
-        color = if (selected) AuthBackground else Color.White,
-        border = BorderStroke(1.dp, if (selected) AuthGreen else AuthBorder),
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-    ) {
-        Row(
-            Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Surface(shape = AuthShape, color = if (selected) AuthGreen else AuthBackground) {
+    Surface(shape = AuthShape, color = if (selected) za.co.devwell.ui.theme.AccentSurface else Color.White,
+        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AuthGreen else AuthBorder),
+        modifier = Modifier.fillMaxWidth().selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = RoundedCornerShape(8.dp), color = if (selected) AuthGreen else za.co.devwell.ui.theme.AccentSurface) {
                 Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
                     if (initials != null) Text(initials, color = if (selected) Color.White else AuthGreen, fontWeight = FontWeight.Bold)
                     else Icon(Icons.Outlined.Groups, null, tint = if (selected) Color.White else AuthGreen)
@@ -155,8 +146,8 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
     Column(Modifier.fillMaxSize().background(AuthBackground).systemBarsPadding().verticalScroll(rememberScrollState()).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Spacer(Modifier.height(64.dp))
-        Surface(shape = CircleShape, color = Color.Transparent, border = BorderStroke(3.dp, AuthBorder)) {
-            Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.HourglassEmpty, null, Modifier.size(32.dp), tint = AuthGreen) }
+        Surface(shape = CircleShape, color = za.co.devwell.ui.theme.AccentSurface) {
+            Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.HourglassEmpty, null, Modifier.size(34.dp), tint = AuthGreen) }
         }
         Text(if (rejected) "Request not approved" else "Awaiting Approval", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Text(if (rejected) "Contact your manager to discuss your request. Your account cannot access the dashboard yet."
