@@ -141,6 +141,7 @@ private fun SelectionCard(title: String, subtitle: String, selected: Boolean, en
 @Composable
 fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: () -> Unit, onPreviewReview: (Boolean) -> Unit) {
     val rejected = state.user?.status == AccountStatus.REJECTED
+    val suspended = state.user?.status == AccountStatus.SUSPENDED
     val company = state.companies.find { it.id == state.user?.companyId }?.name
     val team = state.teams.find { it.id == state.user?.teamId }?.name ?: state.user?.teamName
     Column(Modifier.fillMaxSize().background(AuthBackground).systemBarsPadding().verticalScroll(rememberScrollState()).padding(28.dp),
@@ -149,22 +150,46 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
         Surface(shape = CircleShape, color = za.co.devwell.ui.theme.AccentSurface) {
             Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.HourglassEmpty, null, Modifier.size(34.dp), tint = AuthGreen) }
         }
-        Text(if (rejected) "Request not approved" else "Awaiting Approval", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Text(if (rejected) "Contact your manager to discuss your request. Your account cannot access the dashboard yet."
-            else "Your request to join ${company ?: "your company"} has been sent to your manager. You'll have full access once they approve it.", color = AuthMuted, textAlign = TextAlign.Center)
-        Surface(shape = AuthShape, color = Color.White, border = BorderStroke(1.dp, AuthBorder), shadowElevation = 1.dp) {
+        Text(
+            when {
+                suspended -> "Account suspended"
+                rejected -> "Request not approved"
+                else -> "Awaiting Approval"
+            },
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            when {
+                suspended -> "An administrator suspended this account. Contact your administrator if you need help restoring access."
+                rejected -> "Contact your manager to discuss your request. Your account cannot access the dashboard yet."
+                else -> "Your request to join ${company ?: "your company"} has been sent to your manager. You'll have full access once they approve it."
+            },
+            color = AuthMuted,
+            textAlign = TextAlign.Center,
+        )
+        if (!suspended) Surface(shape = AuthShape, color = Color.White, border = BorderStroke(1.dp, AuthBorder), shadowElevation = 1.dp) {
             Column(Modifier.padding(16.dp)) {
                 Text("YOUR REQUEST", color = AuthMuted, style = MaterialTheme.typography.labelSmall)
                 DetailRow("Company", company ?: "Your company")
                 HorizontalDivider(color = AuthBackground)
                 DetailRow("Team", team ?: "Your selected team")
-                HorizontalDivider(color = AuthBackground)
                 DetailRow("Status", if (rejected) "Not approved" else "Pending review")
             }
         }
         AuthFeedback(state.error, state.message)
-        PrimaryAction(if (state.busy) "Checking..." else "Check approval status", modifier = Modifier.fillMaxWidth(), enabled = !state.busy, onClick = onRefresh)
-        PrivacyNote("Your manager can approve your access from their DevWell dashboard.")
+        PrimaryAction(
+            when {
+                state.busy -> "Checking..."
+                suspended -> "Refresh account status"
+                else -> "Check approval status"
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.busy,
+            onClick = onRefresh,
+        )
+        if (!suspended) PrivacyNote("Your manager can approve your access from their DevWell dashboard.")
         TextButton(onClick = onSignOut, enabled = !state.busy) { Text("Sign out", color = AuthMuted) }
         if (state.preview) {
             Text("Student preview — sample data", color = AuthMuted, style = MaterialTheme.typography.bodySmall)

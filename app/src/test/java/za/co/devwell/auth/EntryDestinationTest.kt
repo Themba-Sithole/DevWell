@@ -21,6 +21,11 @@ class EntryDestinationTest {
             }
         }
     }
+    @Test fun suspendedUsersCannotReachAnyDashboard() {
+        UserRole.entries.forEach { role ->
+            assertEquals(EntryDestination.PENDING, entryDestination(user(role).copy(status = AccountStatus.SUSPENDED)))
+        }
+    }
     @Test fun newEngineerCanChooseTeamBeforeApproval() {
         assertEquals(EntryDestination.ONBOARDING, entryDestination(user().copy(
             onboardingDone = false, status = AccountStatus.PENDING, companyId = null, teamId = null)))
