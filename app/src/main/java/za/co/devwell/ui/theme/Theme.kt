@@ -1,26 +1,54 @@
 package za.co.devwell.ui.theme
 
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-
-val Forest = Color(0xFF174A35)
-val Sage = Color(0xFF82A98F)
-val PaleGreen = Color(0xFFE2EFE5)
-val WarmBackground = Color(0xFFF6F8F3)
-val WarmCard = Color(0xFFFFFDF8)
+import androidx.compose.ui.unit.dp
 
 private val DevWellColors = lightColorScheme(
-    primary = Forest,
+    primary = DevGreen,
     onPrimary = Color.White,
-    secondary = Sage,
-    background = WarmBackground,
-    surface = WarmCard,
-    onBackground = Color(0xFF17211B),
-    onSurface = Color(0xFF17211B),
+    primaryContainer = AccentSurface,
+    onPrimaryContainer = DevGreen,
+    secondary = AccentGreen,
+    onSecondary = Color.White,
+    secondaryContainer = TrackGreen,
+    onSecondaryContainer = DevGreen,
+    tertiary = LightGreen,
+    onTertiary = Ink,
+    background = PageBackground,
+    onBackground = Ink,
+    surface = CardWhite,
+    onSurface = Ink,
+    surfaceVariant = SurfaceMuted,
+    onSurfaceVariant = InkMuted,
+    surfaceTint = DevGreen,
+    outline = BorderGreen,
+    outlineVariant = BorderGreen,
+    error = RedText,
+    onError = Color.White,
+    errorContainer = RedSurface,
+    onErrorContainer = Color(0xFF991B1B),
+    scrim = Color.Black,
+)
+
+private val DevWellShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(24.dp),
 )
 
 @Composable
 fun DevWellTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = DevWellColors, typography = Typography(), content = content)
+    MaterialTheme(
+        colorScheme = DevWellColors,
+        typography = DevWellTypography,
+        shapes = DevWellShapes,
+        content = content,
+    )
 }

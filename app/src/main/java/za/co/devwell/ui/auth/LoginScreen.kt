@@ -3,6 +3,7 @@ package za.co.devwell.ui.auth
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import za.co.devwell.BuildConfig
 import za.co.devwell.R
 import za.co.devwell.model.UserRole
+import za.co.devwell.ui.components.DevWellTextField
+import za.co.devwell.ui.theme.*
 import za.co.devwell.viewmodel.AuthUiState
 
 @Composable
@@ -59,79 +62,163 @@ fun LoginScreen(
     }
     Column(Modifier.fillMaxSize().background(Color.White).imePadding()
         .verticalScroll(rememberScrollState())) {
-        Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xFF1C3823), AuthGreen)))
-            .statusBarsPadding().padding(horizontal = 24.dp, vertical = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            Brand(Modifier.background(AuthBackground, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp))
+        Column(
+            Modifier.fillMaxWidth()
+                .background(Brush.verticalGradient(LoginGradient))
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(top = 32.dp, bottom = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Brand(
+                Modifier
+                    .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(18.dp))
+                    .padding(horizontal = 12.dp),
+            )
             Spacer(Modifier.height(18.dp))
             Text("DevWell", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(8.dp))
-            Text("Well-being for developers,\nby developers.", color = Color(0xFFC1D7BD), textAlign = TextAlign.Center)
-            Spacer(Modifier.height(22.dp))
-            Text("Check in   •   Reflect   •   Grow", color = Color(0xFFBCD2B8), style = MaterialTheme.typography.labelMedium)
+            Text(
+                "Well-being for developers,\nby developers.",
+                color = Color(0xFFC8DCCE), textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(20.dp))
+            Box(
+                Modifier
+                    .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(50))
+                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(50))
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
+            ) {
+                Text(
+                    "Check in   ·   Reflect   ·   Grow",
+                    color = Color.White, style = MaterialTheme.typography.labelMedium,
+                )
+            }
         }
-        Column(Modifier.padding(24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (registering) "Create your account" else "Welcome back", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(if (registering) "Start your well-being journey with DevWell." else "Sign in to your DevWell account", color = AuthMuted, style = MaterialTheme.typography.bodySmall)
-            if (registering) AuthField(name, { name = it }, "Full name", "Alex Developer", !state.busy)
-            AuthField(email, { email = it }, "Email", "you@company.io", !state.busy, KeyboardType.Email)
-            OutlinedTextField(password, { password = it }, label = { Text("Password") }, singleLine = true,
-                enabled = !state.busy, shape = AuthShape, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = { TextButton(onClick = { showPassword = !showPassword }) { Text(if (showPassword) "Hide" else "Show") } })
-            if (registering) {
-                OutlinedTextField(confirmation, { confirmation = it }, label = { Text("Confirm password") }, singleLine = true,
-                    enabled = !state.busy, shape = AuthShape, modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), visualTransformation = PasswordVisualTransformation())
-                Text("Use at least 8 characters. Your manager will approve your team access.", color = AuthMuted, style = MaterialTheme.typography.bodySmall)
-            }
-            AuthFeedback(state.error, state.message)
-            PrimaryAction(if (state.busy) "Please wait..." else if (registering) "Create account" else "Sign in",
-                modifier = Modifier.fillMaxWidth(), enabled = !state.busy) {
-                if (registering) onSignUp(name, email, password, confirmation) else onSignIn(email, password)
-            }
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            TextButton(onClick = { changePage(if (registering) "login" else "register") }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Text(if (registering) "Already registered? Sign in" else "New here? Create an account")
-            }
-            Text("Your sign-in is saved securely on this device. Sign out when using a shared phone.", color = AuthMuted, style = MaterialTheme.typography.bodySmall)
-            if (BuildConfig.DEBUG) {
-                TextButton(onClick = { showPreview = !showPreview }, enabled = !state.busy) { Text("Student preview (debug only)") }
-                if (showPreview) {
-                    Text("Uses sample data. No real account or database changes.", style = MaterialTheme.typography.bodySmall)
-                    UserRole.entries.forEach { role ->
-                        OutlinedButton(onClick = { onPreview(role, false) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Preview ${role.name.lowercase()}") }
+        Surface(
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            color = Color.White,
+            shadowElevation = 12.dp,
+            modifier = Modifier.fillMaxWidth().offset(y = (-24).dp),
+        ) {
+            Column(Modifier.padding(horizontal = 24.dp).padding(top = 28.dp, bottom = 24.dp)
+                .navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (registering) "Create your account" else "Welcome back",
+                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    if (registering) "Start your well-being journey with DevWell." else "Sign in to your DevWell account",
+                    color = AuthMuted, style = MaterialTheme.typography.bodyMedium,
+                )
+                if (registering) AuthField(name, { name = it }, "Full name", "Alex Developer", !state.busy)
+                AuthField(email, { email = it }, "Email", "you@company.io", !state.busy, KeyboardType.Email)
+                DevWellTextField(
+                    password, { password = it }, label = "Password", singleLine = true,
+                    enabled = !state.busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        TextButton(onClick = { showPassword = !showPassword }) {
+                            Text(if (showPassword) "Hide" else "Show", color = AuthMuted)
+                        }
+                    },
+                )
+                if (registering) {
+                    DevWellTextField(
+                        confirmation, { confirmation = it }, label = "Confirm password", singleLine = true,
+                        enabled = !state.busy,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = PasswordVisualTransformation(),
+                    )
+                    Text(
+                        "Use at least 8 characters. Your manager will approve your team access.",
+                        color = AuthMuted, style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                AuthFeedback(state.error, state.message)
+                PrimaryAction(
+                    if (state.busy) "Please wait..." else if (registering) "Create account" else "Sign in",
+                    modifier = Modifier.fillMaxWidth(), enabled = !state.busy,
+                ) {
+                    if (registering) onSignUp(name, email, password, confirmation) else onSignIn(email, password)
+                }
+                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                TextButton(onClick = { changePage(if (registering) "login" else "register") }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (registering) "Already registered? Sign in" else "New here? Create an account", color = AuthGreen)
+                }
+                Text(
+                    "Your sign-in is saved securely on this device. Sign out when using a shared phone.",
+                    color = AuthMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
+                )
+                if (BuildConfig.DEBUG) {
+                    TextButton(onClick = { showPreview = !showPreview }, enabled = !state.busy) { Text("Student preview (debug only)") }
+                    if (showPreview) {
+                        Text("Uses sample data. No real account or database changes.", style = MaterialTheme.typography.bodySmall)
+                        UserRole.entries.forEach { role ->
+                            OutlinedButton(onClick = { onPreview(role, false) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Preview ${role.name.lowercase()}") }
+                        }
+                        OutlinedButton(onClick = { onPreview(UserRole.ENGINEER, true) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Preview new engineer") }
                     }
-                    OutlinedButton(onClick = { onPreview(UserRole.ENGINEER, true) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Preview new engineer") }
                 }
             }
         }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
 @Composable
 private fun AuthField(value: String, onChange: (String) -> Unit, label: String, placeholder: String, enabled: Boolean, keyboard: KeyboardType = KeyboardType.Text) {
-    OutlinedTextField(value, onChange, label = { Text(label) }, placeholder = { Text(placeholder) },
-        singleLine = true, enabled = enabled, shape = AuthShape, keyboardOptions = KeyboardOptions(keyboardType = keyboard), modifier = Modifier.fillMaxWidth())
+    DevWellTextField(
+        value, onChange, label = label, placeholder = placeholder, singleLine = true,
+        enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+    )
 }
 
 @Composable
 fun SplashScreen(onGetStarted: () -> Unit, onLogin: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFFDEE9E0)).systemBarsPadding()) {
-        val landscapeHeight = (maxHeight - 370.dp).coerceAtLeast(240.dp)
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Brand()
-                Text("Check in. Reflect.\nBuild sustainably.", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = AuthGreen, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(8.dp))
-                Text("Well-being for developers,\nby developers.", color = AuthMuted, textAlign = TextAlign.Center)
-            }
-            Image(painterResource(R.drawable.devwell_landscape), null, Modifier.fillMaxWidth().height(landscapeHeight), contentScale = ContentScale.Crop, alignment = Alignment.BottomCenter)
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Box(Modifier.fillMaxSize().background(Color(0xFFDDE8E0)).systemBarsPadding()) {
+        Image(
+            painterResource(R.drawable.devwell_landscape), null,
+            Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop, alignment = Alignment.Center,
+        )
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(56.dp))
+            Brand()
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Check in. Reflect.\nBuild sustainably.",
+                style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                color = AuthGreen, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Well-being for developers, by developers.",
+                color = AuthMuted, textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.weight(1f))
+            Column(
+                Modifier.fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color(0xF2DDE8E0)),
+                        ),
+                    )
+                    .padding(20.dp)
+                    .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 PrimaryAction("Get Started", modifier = Modifier.fillMaxWidth(), onClick = onGetStarted)
-                Button(onLogin, Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = AuthShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = AuthGreen)) { Text("I have an account", fontWeight = FontWeight.SemiBold) }
+                OutlinedButton(
+                    onLogin, Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AuthGreen),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AuthGreen),
+                ) { Text("I have an account", fontWeight = FontWeight.SemiBold) }
             }
         }
     }
