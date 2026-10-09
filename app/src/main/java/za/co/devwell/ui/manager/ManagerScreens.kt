@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,8 +46,19 @@ import za.co.devwell.ui.auth.AuthFeedback
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
 import za.co.devwell.viewmodel.ManagerViewModel
+import za.co.devwell.viewmodel.TeamSettingsRules
 
 private fun Double?.oneDecimal(): String = this?.let { "%.1f".format(it) } ?: "-"
+
+/**
+ * Roster card wording. The Supabase repository cannot count members yet (RLS hides other users),
+ * so Team.memberCount stays at its default 0. Zero or less is treated as "unknown", not "empty".
+ */
+internal fun memberCountLabel(count: Int): String = when {
+    count <= 0 -> "Member count not available yet"
+    count == 1 -> "1 member"
+    else -> "$count members"
+}
 
 /** One bar on the manager chart. Holds a team average only, never an individual score. */
 internal data class TeamChartBar(val label: String, val value: Double, val scaleMax: Int) {
@@ -493,7 +505,15 @@ fun TeamSettingsScreen(
     }
     var name by remember(team.id) { mutableStateOf(team.name) }
     var timezone by remember(team.id) { mutableStateOf(team.timezone.orEmpty()) }
-    var cadence by remember(team.id) { mutableStateOf(normalizeCadence(team.checkInCadence)) }
+    // Start from the stored value only if it is still valid, so the controls never show an impossible state.
+    var cadence by remember(team.id) {
+        mutableStateOf(team.checkInCadence?.takeIf { it in TeamSettingsRules.CADENCES } ?: "Daily")
+    }
+    var threshold by remember(team.id) {
+        mutableDoubleStateOf(team.lowWellbeingThreshold?.takeIf { it in TeamSettingsRules.THRESHOLD_RANGE } ?: 2.0)
+    }
+    val nameLength = name.trim().length
+    val nameTooLong = nameLength > TeamSettingsRules.NAME_MAX_LENGTH
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -883,4 +903,19 @@ private fun ManagerHomeHiddenPreview() {
 @Composable
 private fun ManagerHomeVisiblePreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate, {}, {}) }
+}
+
+private val previewTeam = Team("preview", "c1", "Mobile Team", memberCount = 8)
+
+@Preview(showBackground = true, name = "Settings: valid")
+@Composable
+private fun TeamSettingsValidPreview() {
+    DevWellTheme { TeamSettingsScreen(previewTeam, {}) }
+}
+
+@Preview(showBackground = true, name = "Settings: name too long")
+@Composable
+private fun TeamSettingsLongNamePreview() {
+    val team = previewTeam.copy(name = "A".repeat(TeamSettingsRules.NAME_MAX_LENGTH + 1))
+    DevWellTheme { TeamSettingsScreen(team, {}, error = TeamSettingsRules.validate(team)) }
 }

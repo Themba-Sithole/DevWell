@@ -3,6 +3,7 @@ package za.co.devwell.ui.engineer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,103 +27,187 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.CheckIn
 import za.co.devwell.model.PrivacyPolicy
 import za.co.devwell.model.TeamAggregate
-import za.co.devwell.ui.components.*
-import za.co.devwell.ui.theme.*
-
-private val WELLBEING_LABELS = listOf("Struggling", "Not great", "Okay", "Good", "Great")
+import za.co.devwell.model.TrendsAnalysis
+import za.co.devwell.model.TrendsPeriod
+import za.co.devwell.ui.components.DevWellCard
+import za.co.devwell.ui.components.PageTitle
+import za.co.devwell.ui.components.PrivacyNotice
+import java.util.Locale
 
 @Composable
-fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
-    val chronological = checkIns.asReversed()
-    val recent = chronological.takeLast(12)
-    val avgWorkload = checkIns.map { it.values.workload }.average()
-    val avgEnergy = checkIns.map { it.values.energy }.average()
-    val avgFocus = checkIns.map { it.values.focus }.average()
+fun TrendsScreen(checkIns: List<CheckIn>) {
+    var selectedPeriodName by rememberSaveable { mutableStateOf(TrendsPeriod.THIS_WEEK.name) }
+    val selectedPeriod = TrendsPeriod.entries.firstOrNull { it.name == selectedPeriodName }
+        ?: TrendsPeriod.THIS_WEEK
+    val today = TrendsAnalysis.today()
+    val visibleCheckIns = TrendsAnalysis.filter(checkIns, selectedPeriod, today)
+    val summary = TrendsAnalysis.summarize(visibleCheckIns)
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { BackHeader("Your trends", "Your private check-in history", onBack) }
-        if (checkIns.isEmpty()) {
-            item { DevWellCard { Text("No check-ins yet. Complete your first check-in from Home.") } }
+        item { PageTitle("Personal trends", "Your private check-in history") }
+        item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TrendsPeriod.entries.forEach { period ->
+                    FilterChip(
+                        selected = selectedPeriod == period,
+                        onClick = { selectedPeriodName = period.name },
+                        label = { Text(period.label) },
+                    )
+                }
+            }
+        }
+        if (visibleCheckIns.isEmpty()) {
+            item {
+                DevWellCard {
+                    Text(
+                        if (checkIns.isEmpty()) "No check-ins yet. Complete your first check-in from Home."
+                        else "No check-ins in ${selectedPeriod.label.lowercase(Locale.ROOT)}. Choose another period to see more history."
+                    )
+                }
+            }
         } else {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Check-ins", checkIns.size.toString(), Modifier.weight(1f))
-                    StatCard("Avg workload", "%.1f / 5".format(avgWorkload), Modifier.weight(1f))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SummaryCard("Avg wellbeing", summary.averageWellbeing, "/5", Modifier.weight(1f))
+                        SummaryCard("Avg workload", summary.averageWorkload, "/5", Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SummaryCard("Avg energy", summary.averageEnergy, "/10", Modifier.weight(1f))
+                        SummaryCard("Avg focus", summary.averageFocus, "/10", Modifier.weight(1f))
+                    }
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Avg energy", "%.1f / 10".format(avgEnergy), Modifier.weight(1f))
-                    StatCard("Avg focus", "%.1f / 10".format(avgFocus), Modifier.weight(1f))
+                TrendLineCard(
+                    title = "Workload over time",
+                    unit = "/5",
+                    values = visibleCheckIns.map { it.dateLabel to it.values.workload.toFloat() },
+                    maximum = 5f,
+                )
+            }
+            item {
+                TrendLineCard(
+                    title = "Energy and focus",
+                    unit = "/10",
+                    values = visibleCheckIns.map { it.dateLabel to it.values.energy.toFloat() },
+                    secondValues = visibleCheckIns.map { it.dateLabel to it.values.focus.toFloat() },
+                    maximum = 10f,
+                    secondLabel = "Focus",
+                )
+            }
+            item {
+                Text("Check-ins", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            items(visibleCheckIns.asReversed(), key = { it.id }) { item ->
+                DevWellCard {
+                    Text(item.dateLabel, fontWeight = FontWeight.Bold)
+                    Text("Wellbeing ${item.values.wellbeing}/5 • Workload ${item.values.workload}/5")
+                    Text("Energy ${item.values.energy}/10 • Focus ${item.values.focus}/10")
                 }
             }
-            if (recent.size >= 2) {
-                item {
-                    DevWellCard {
-                        Text("Wellbeing", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Text(
-                            "Your last ${recent.size} check-ins",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = InkMuted,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        LineChart(
-                            values = recent.map { it.values.wellbeing.toFloat() },
-                            max = 5f,
-                            modifier = Modifier.fillMaxWidth().height(130.dp),
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Row {
-                            Text(
-                                recent.first().dateLabel,
-                                Modifier.weight(1f),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = InkMuted,
-                            )
-                            Text(
-                                recent.last().dateLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = InkMuted,
-                            )
-                        }
-                    }
+        }
+    }
+}
+
+@Composable
+private fun SummaryCard(label: String, value: Double?, scale: String, modifier: Modifier = Modifier) {
+    DevWellCard(modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(
+            text = "${value?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"}$scale",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun TrendLineCard(
+    title: String,
+    unit: String,
+    values: List<Pair<String, Float>>,
+    maximum: Float,
+    secondValues: List<Pair<String, Float>> = emptyList(),
+    secondLabel: String = "",
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.tertiary
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    val description = buildString {
+        append(title)
+        values.forEach { (date, value) -> append(". $date: ${value.toInt()}$unit") }
+        secondValues.forEach { (date, value) -> append(". $date $secondLabel: ${value.toInt()}$unit") }
+    }
+    DevWellCard {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Canvas(
+            Modifier.fillMaxWidth().height(150.dp).semantics { contentDescription = description },
+        ) {
+            val inset = 14.dp.toPx()
+            val chartWidth = (size.width - inset * 2).coerceAtLeast(1f)
+            val chartHeight = (size.height - inset * 2).coerceAtLeast(1f)
+            for (line in 0..2) {
+                val y = inset + chartHeight * line / 2f
+                drawLine(grid, Offset(inset, y), Offset(size.width - inset, y), strokeWidth = 1.dp.toPx())
+            }
+            fun drawSeries(series: List<Pair<String, Float>>, color: androidx.compose.ui.graphics.Color) {
+                if (series.isEmpty()) return
+                val points = series.mapIndexed { index, (_, value) ->
+                    val x = if (series.size == 1) size.width / 2f
+                    else inset + chartWidth * index / (series.size - 1)
+                    val y = inset + chartHeight * (1f - (value / maximum).coerceIn(0f, 1f))
+                    Offset(x, y)
                 }
-                item {
-                    DevWellCard {
-                        Text("Energy and focus", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Text(
-                            "Daily scores out of 10",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = InkMuted,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        GroupedBarChart(
-                            seriesA = recent.map { it.values.energy.toFloat() },
-                            seriesB = recent.map { it.values.focus.toFloat() },
-                            max = 10f,
-                            modifier = Modifier.fillMaxWidth().height(130.dp),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            LegendDot(DevGreen)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Energy", style = MaterialTheme.typography.labelSmall, color = InkMuted)
-                            Spacer(Modifier.width(14.dp))
-                            LegendDot(LightGreen)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Focus", style = MaterialTheme.typography.labelSmall, color = InkMuted)
-                        }
+                if (points.size > 1) {
+                    val path = Path().apply {
+                        moveTo(points.first().x, points.first().y)
+                        points.drop(1).forEach { lineTo(it.x, it.y) }
                     }
+                    drawPath(path, color, style = Stroke(width = 3.dp.toPx()))
                 }
+                points.forEach { drawCircle(color, radius = 5.dp.toPx(), center = it) }
+            }
+            drawSeries(values, primary)
+            drawSeries(secondValues, secondary)
+        }
+        if (values.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(values.first().first, style = MaterialTheme.typography.labelSmall)
+                Text(values.last().first, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        if (secondValues.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("● Energy", color = primary, style = MaterialTheme.typography.labelMedium)
+                Text("● $secondLabel", color = secondary, style = MaterialTheme.typography.labelMedium)
             }
             item { SectionLabel("Check-in history") }
             items(checkIns.reversed()) { item ->
