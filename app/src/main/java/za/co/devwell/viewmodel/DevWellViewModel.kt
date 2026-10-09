@@ -49,6 +49,21 @@ class DevWellViewModel : ViewModel() {
     val adminUsers: StateFlow<List<DevWellUser>> = AppContainer.admin.users
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val adminLoading: StateFlow<Boolean> = AppContainer.admin.isLoading
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val adminBusyUserId: StateFlow<String?> = AppContainer.admin.busyUserId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val adminErrorMessage: StateFlow<String?> = AppContainer.admin.errorMessage
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun refreshAdminDashboard() = viewModelScope.launch {
+        AppContainer.admin.refresh()
+    }
+
+    fun clearAdminError() = AppContainer.admin.clearError()
+
     fun setUserStatus(userId: String, active: Boolean) = viewModelScope.launch {
         AppContainer.admin.setUserStatus(userId, active)
     }

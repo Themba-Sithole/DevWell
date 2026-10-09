@@ -62,7 +62,8 @@ All IDs below are UUIDs in production, represented as Kotlin strings.
 - id: UUID primary key, references auth.users.id (the same ID; not a new generated UUID).
 - name: non-null text; email: non-null text from the authenticated account.
 - role: non-null text, one of engineer, manager, admin.
-- status: non-null text, one of pending, active, rejected.
+- status: non-null text, one of pending, active, rejected; the Member 6 admin migration
+  adds suspended.
 - company_id: nullable company foreign key; team_id: nullable team foreign key.
 - onboarding_done: non-null boolean.
 - New signup: role=engineer, status=pending, onboarding_done=false, no membership.
@@ -149,7 +150,7 @@ review it. Member 5 must connect the manager UI to this endpoint; Member 1 does 
   the directory fields needed for selection; the UI is not an access-control boundary.
 - Engineers can read only their own join requests. Managers can access requests only
   for teams they manage in their own company; active admins can also review them. Do not grant manager access to individual wellbeing records.
-- Pending/rejected accounts must be blocked by backend policies for all protected
+- Pending/rejected/suspended accounts must be blocked by backend policies for all protected
   check-ins, projects and other features, even if someone bypasses the Android UI.
 - Member 2: write check-ins for auth.uid(), after active membership checks.
 - Member 3: personal history is own-user data; privacy preview uses the same safe
@@ -159,6 +160,10 @@ review it. Member 5 must connect the manager UI to this endpoint; Member 1 does 
 - Member 5: live request review must update the profile as described above.
 - Member 6: notifications, AI and admin remain your features. AI server secrets and
   privileged company/role changes belong on the backend. Sign-out is already shared.
+  The admin dashboard lists account identity/role/status and aggregate counts only;
+  it must not return individual wellbeing data. Only an active, onboarded admin can
+  suspend/reactivate another non-admin account. Status writes are audited, and suspended
+  accounts must lose protected project/task access even if their existing session remains.
 
 ## End-to-end acceptance checklist after backend deployment
 

@@ -27,12 +27,15 @@ The Gradle wrapper uses 8.14.3; Android Gradle Plugin remains 8.7.3.
 
 The Member 1 database and both join-request Edge Functions are deployed. See
 [supabase/README.md](supabase/README.md) for setup, API calls and verified results.
-The company/team directory is intentionally empty until real names are available. Other members' feature repositories still contain sample data;
+The company/team directory is intentionally empty until real names are available.
+Member 6's live admin dashboard is implemented locally but its migration and function
+have not been deployed. Other members' feature repositories still contain sample data;
 the dashboard identifies that data as sample data.
 
 ## Team notes
 
 - [Database and Edge Function contract](docs/member1-backend-contract.md)
+- [Supabase setup and deployment notes](supabase/README.md)
 - [Shareable PDF](output/pdf/DevWell-Member-1-Team-Handoff.pdf)
 - [Verification record](docs/validation.md)
 
