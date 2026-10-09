@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 
 enum class UserRole { ENGINEER, MANAGER, ADMIN }
 
-enum class AccountStatus { PENDING, ACTIVE, REJECTED }
+enum class AccountStatus { PENDING, ACTIVE, REJECTED, SUSPENDED }
 
 enum class CompanyStatus { PENDING, ACTIVE }
 
