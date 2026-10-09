@@ -513,7 +513,7 @@ fun TeamSettingsScreen(
         mutableDoubleStateOf(team.lowWellbeingThreshold?.takeIf { it in TeamSettingsRules.THRESHOLD_RANGE } ?: 2.0)
     }
     val nameLength = name.trim().length
-    val nameTooLong = nameLength > TeamSettingsRules.NAME_MAX_LENGTH
+    val nameTooLong = nameLength > TeamSettingsRules.NAME_MAX_LENGTH && name.trim() != team.name.trim()
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
