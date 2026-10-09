@@ -1,6 +1,7 @@
 package za.co.devwell.ui.auth
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.AccountStatus
 import za.co.devwell.model.CompanyStatus
@@ -109,13 +111,27 @@ private fun SelectionCard(title: String, subtitle: String, selected: Boolean, en
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Surface(shape = RoundedCornerShape(8.dp), color = if (selected) AuthGreen else za.co.devwell.ui.theme.AccentSurface) {
                 Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
-                    if (initials != null) Text(initials, color = if (selected) Color.White else AuthGreen)
+                    if (initials != null) Text(initials, color = if (selected) Color.White else AuthGreen, fontWeight = FontWeight.Bold)
                     else Icon(Icons.Outlined.Groups, null, tint = if (selected) Color.White else AuthGreen)
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                if (subtitle.isNotEmpty()) Text(subtitle, color = AuthMuted, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        subtitle,
+                        color = AuthMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             if (selected) Icon(Icons.Outlined.Check, "Selected", Modifier.size(20.dp), tint = AuthGreen)
         }

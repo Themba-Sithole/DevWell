@@ -19,6 +19,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import za.co.devwell.model.*
+import java.time.Instant
+import java.time.ZoneId
 
 /* --------------------------------------------------------------------------
  * Repository contracts — UI/ViewModels depend on these, never on Supabase SDKs.
@@ -49,7 +51,7 @@ interface WellbeingRepository {
 
 interface TeamInsightsRepository {
     /** Same safe aggregate for manager insights and engineer privacy preview. */
-    val teamAggregate: Flow<TeamAggregate>
+    val teamAggregate: Flow<TeamAggregate?>
 }
 
 interface ProjectRepository {
@@ -183,7 +185,9 @@ private data class CheckInRow(
     fun toCheckIn() = CheckIn(
         id = id,
         userId = userId,
-        dateLabel = createdAt.take(10), // e.g. "2026-09-29" — Trends (Member 3) can reformat if needed
+        dateLabel = runCatching {
+            Instant.parse(createdAt).atZone(ZoneId.of("Africa/Johannesburg")).toLocalDate().toString()
+        }.getOrElse { createdAt.take(10) },
         values = responses,
     )
 }
@@ -246,7 +250,7 @@ class MockTeamInsightsRepository : TeamInsightsRepository {
             averageAfterHoursMinutes = 45.0,
         )
     )
-    override val teamAggregate: Flow<TeamAggregate> = aggregate
+    override val teamAggregate: Flow<TeamAggregate?> = aggregate
 
     fun setResponseCountForDemo(count: Int) {
         aggregate.value = aggregate.value.copy(responseCount = count)
@@ -454,6 +458,7 @@ object AppContainer {
     private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
     private lateinit var wellbeingRepo: WellbeingRepository
     private lateinit var managerRepo: ManagerRepository
+    private lateinit var teamInsightsRepo: TeamInsightsRepository
     private var projectRepository: ProjectRepository = MockProjectRepository()
     private var aiRepository: AiGuidanceRepository = MockAiGuidanceRepository()
 
@@ -465,6 +470,11 @@ object AppContainer {
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
             wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
+            teamInsightsRepo = if (client == null) {
+                MockTeamInsightsRepository()
+            } else {
+                SupabaseTeamInsightsRepository(client, identity.currentUser, managerRepo.managedTeam, scope)
+            }
             projectRepository = if (client == null) {
                 MockProjectRepository()
             } else {
@@ -476,7 +486,7 @@ object AppContainer {
     val auth: AuthRepository get() = identity
     val onboarding: OnboardingRepository get() = identity
     val wellbeing: WellbeingRepository get() = wellbeingRepo
-    val teamInsights: TeamInsightsRepository = MockTeamInsightsRepository()
+    val teamInsights: TeamInsightsRepository get() = teamInsightsRepo
     val projects: ProjectRepository get() = projectRepository
     val manager: ManagerRepository get() = managerRepo
     val notifications: NotificationRepository = MockNotificationRepository()
