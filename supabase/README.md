@@ -40,8 +40,18 @@ and when Refresh status is tapped. The directory is intentionally empty until re
 company/team names are available. No invented manager/admin accounts were left behind.
 
 Member 5 must replace `MockManagerRepository` with live approval calls. Other members'
-check-ins, projects, history, notifications and AI still use sample repositories;
-their backend features are outside this Member 1 onboarding implementation.
+check-ins, projects, history and notifications still use sample repositories; their
+backend features are outside this Member 1 onboarding implementation.
+
+## AI assistant
+
+The Android assistant sends a question to the `ai-assistant` Edge Function only
+after the user checks the consent box. Live requests require an active account; preview
+requests are limited by the Supabase gateway IP. Both are capped at 10 requests per hour
+per account or IP using a hashed identifier stored in a private table. Prompts are not
+stored. `GEMINI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` stay in Edge Function secrets;
+the latter is used only for the rate-limit RPC. The free Gemini tier may use prompts and
+responses to improve Google products, which the consent box discloses.
 
 ```text
 POST /functions/v1/submit-join-request

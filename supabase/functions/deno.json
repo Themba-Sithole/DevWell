@@ -3,6 +3,6 @@
   "fmt": { "lineWidth": 110 },
   "tasks": {
     "test": "deno test _shared/handler_test.ts _shared/team_aggregate_handler_test.ts",
-    "check": "deno check submit-join-request/index.ts review-join-request/index.ts team-aggregate/index.ts"
+    "check": "deno check submit-join-request/index.ts review-join-request/index.ts team-aggregate/index.ts ai-assistant/index.ts"
   }
 }
