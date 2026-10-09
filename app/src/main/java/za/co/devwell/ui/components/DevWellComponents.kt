@@ -88,7 +88,7 @@ fun DevWellCard(
 
 @Composable
 fun PrivacyNotice(
-    text: String = "Your individual check-ins are private. Managers only see anonymised team summaries after at least 5 responses.",
+    text: String = "Your individual check-ins are private. Managers only see anonymised team summaries after at least 5 distinct participants.",
 ) {
     Row(
         Modifier
