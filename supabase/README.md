@@ -43,6 +43,30 @@ Member 5 must replace `MockManagerRepository` with live approval calls. Other me
 check-ins, projects, history and notifications still use sample repositories; their
 backend features are outside this Member 1 onboarding implementation.
 
+## Member 6 admin dashboard (not deployed)
+
+The local `admin-dashboard` Edge Function lists account identity, role, status,
+team display name and aggregate platform counts. It never returns check-in answers,
+scores or notes. The database RPCs require the caller to be an active, onboarded admin;
+status changes are limited to suspending/reactivating another non-admin account and are
+audited in the unexposed `private.admin_account_status_audit` table. The caller's JWT
+is verified and forwarded to Postgres; no service-role key is required. The migration
+also makes active status a database requirement for project/task access, so an already
+signed-in suspended account is blocked without waiting for the Android UI to refresh.
+
+This migration and function have not been applied to the hosted Supabase project.
+First validate them against a disposable local/development database and review the
+target project's migration history. After approval, deploy the database migration
+through the normal migration workflow and deploy only this function with:
+
+```text
+supabase functions deploy admin-dashboard --project-ref whtsjwiqcesngltfghyb --use-api
+```
+
+Validate locally with `tests/admin_dashboard.sql` and the Deno test/check commands
+below. The SQL test is transactional and expects the migrations to be applied; run it
+with a trusted database role in a development database, never on production.
+
 ## AI assistant
 
 The Android assistant sends a question to the `ai-assistant` Edge Function only
