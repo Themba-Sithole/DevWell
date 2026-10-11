@@ -58,6 +58,7 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
     val today = TrendsAnalysis.today()
     val visibleCheckIns = TrendsAnalysis.filter(checkIns, selectedPeriod, today)
     val summary = TrendsAnalysis.summarize(visibleCheckIns)
+    val chartCheckIns = TrendsAnalysis.chartEntries(visibleCheckIns)
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -111,7 +112,7 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
                         )
                         Spacer(Modifier.height(14.dp))
                         LineChart(
-                            values = visibleCheckIns.takeLast(12).map { it.values.wellbeing.toFloat() },
+                            values = chartCheckIns.map { it.values.wellbeing.toFloat() },
                             max = 5f,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -119,7 +120,7 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
                                 .semantics {
                                     contentDescription = buildString {
                                         append("Wellbeing over time")
-                                        visibleCheckIns.takeLast(12).forEach {
+                                        chartCheckIns.forEach {
                                             append(". ${it.dateLabel}: ${it.values.wellbeing}/5")
                                         }
                                     }
@@ -128,13 +129,13 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
                         Spacer(Modifier.height(6.dp))
                         Row {
                             Text(
-                                visibleCheckIns.first().dateLabel,
+                                chartCheckIns.first().dateLabel,
                                 Modifier.weight(1f),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = InkMuted,
                             )
                             Text(
-                                visibleCheckIns.last().dateLabel,
+                                chartCheckIns.last().dateLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = InkMuted,
                             )
@@ -151,8 +152,8 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
                         )
                         Spacer(Modifier.height(14.dp))
                         GroupedBarChart(
-                            seriesA = visibleCheckIns.takeLast(12).map { it.values.energy.toFloat() },
-                            seriesB = visibleCheckIns.takeLast(12).map { it.values.focus.toFloat() },
+                            seriesA = chartCheckIns.map { it.values.energy.toFloat() },
+                            seriesB = chartCheckIns.map { it.values.focus.toFloat() },
                             max = 10f,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -160,7 +161,7 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
                                 .semantics {
                                     contentDescription = buildString {
                                         append("Energy and focus over time")
-                                        visibleCheckIns.takeLast(12).forEach {
+                                        chartCheckIns.forEach {
                                             append(". ${it.dateLabel}: energy ${it.values.energy}/10")
                                             append(", focus ${it.values.focus}/10")
                                         }

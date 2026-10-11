@@ -25,15 +25,17 @@ Calling RPC directly is allowed and cannot bypass those authorization checks.
 
 ## App integration
 
-Member 3's `team-aggregate` endpoint and app integration are present on the review
-branch only; neither has been deployed to the live project.
-
-Member 3's `team-aggregate` function source uses the signed-in user's token to verify
-active team membership, then uses the server-only service-role key to read check-ins
-for active engineers in that team. It returns only a count of distinct employees below five; at five or more it returns averages computed by first averaging each employee's check-ins and then weighting each employee equally. The service-role key is never sent to Android.
-The function and app wiring must be reviewed and merged before anyone deploys it.
-The endpoint supports an inclusive local-date range; the app sends the same recent
-three-month range to the engineer preview and manager dashboard.
+Member 3's `team-aggregate` endpoint is deployed to the live project, and both the
+engineer privacy preview and manager dashboard use the shared `TeamInsightsRepository`.
+The function verifies the signed-in user's active team access before using the
+server-only service-role key to read check-ins for active engineers on that team. The
+service-role key is never sent to Android. Below five distinct participants, the
+response contains only the count. At five or more, it returns anonymous per-metric
+averages after averaging each participant's check-ins equally. A metric remains hidden
+unless at least five distinct participants have a valid numeric value for it. The
+endpoint accepts an inclusive local-date range; the app sends the same recent
+three-month range to the engineer preview and manager dashboard. Deploy updates only
+after reviewing the source against the live function and checking the target project.
 
 Member 1 already submits join requests and refreshes `public.user` after submission
 and when Refresh status is tapped. The directory is intentionally empty until real
