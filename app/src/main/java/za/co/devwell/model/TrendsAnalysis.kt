@@ -24,6 +24,7 @@ data class TrendsSummary(
 )
 
 object TrendsAnalysis {
+    const val MAX_CHART_ENTRIES = 12
     private val appZone = ZoneId.of("Africa/Johannesburg")
 
     fun today(): LocalDate = LocalDate.now(appZone)
@@ -57,6 +58,9 @@ object TrendsAnalysis {
         averageEnergy = checkIns.averageOf { it.values.energy },
         averageFocus = checkIns.averageOf { it.values.focus },
     )
+
+    /** Keep plotted values and their date labels on the same visible window. */
+    fun chartEntries(checkIns: List<CheckIn>): List<CheckIn> = checkIns.takeLast(MAX_CHART_ENTRIES)
 
     private inline fun List<CheckIn>.averageOf(value: (CheckIn) -> Int): Double? =
         if (isEmpty()) null else map { value(it).toDouble() }.average()
