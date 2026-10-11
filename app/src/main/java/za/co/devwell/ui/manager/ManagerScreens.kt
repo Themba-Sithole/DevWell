@@ -47,6 +47,7 @@ import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
 import za.co.devwell.viewmodel.ManagerViewModel
 import za.co.devwell.viewmodel.TeamSettingsRules
+import kotlin.math.roundToInt
 
 private fun Double?.oneDecimal(): String = this?.let { "%.1f".format(it) } ?: "-"
 
@@ -59,6 +60,24 @@ internal fun memberCountLabel(count: Int): String = when {
     count == 1 -> "1 member"
     else -> "$count members"
 }
+
+/** Button text for each stored cadence. Stored values come from TeamSettingsRules.CADENCES. */
+internal fun cadenceLabel(cadence: String): String = when (cadence) {
+    "Daily" -> "Every day"
+    "Weekly" -> "Once a week"
+    else -> cadence
+}
+
+/** Rounds a slider position to the nearest 0.5 inside the allowed threshold range. */
+internal fun snapThreshold(raw: Float): Double =
+    ((raw * 2).roundToInt() / 2.0).coerceIn(TeamSettingsRules.THRESHOLD_RANGE)
+
+/** Same rule as TeamSettingsRules.validate: an unchanged legacy long name is allowed. */
+internal fun teamNameTooLong(name: String, savedName: String): Boolean =
+    name.trim().length > TeamSettingsRules.NAME_MAX_LENGTH && name.trim() != savedName.trim()
+
+internal fun nameCounterLabel(name: String): String =
+    "${name.trim().length}/${TeamSettingsRules.NAME_MAX_LENGTH}"
 
 /** One bar on the manager chart. Holds a team average only, never an individual score. */
 internal data class TeamChartBar(val label: String, val value: Double, val scaleMax: Int) {
@@ -512,8 +531,7 @@ fun TeamSettingsScreen(
     var threshold by remember(team.id) {
         mutableDoubleStateOf(team.lowWellbeingThreshold?.takeIf { it in TeamSettingsRules.THRESHOLD_RANGE } ?: 2.0)
     }
-    val nameLength = name.trim().length
-    val nameTooLong = nameLength > TeamSettingsRules.NAME_MAX_LENGTH && name.trim() != team.name.trim()
+    val nameTooLong = teamNameTooLong(name, team.name)
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -527,7 +545,14 @@ fun TeamSettingsScreen(
             DevWellCard {
                 SectionLabel("General")
                 Spacer(Modifier.height(12.dp))
-                DevWellTextField(name, { name = it }, label = "Team name", enabled = !saving)
+                DevWellTextField(name, { name = it }, label = "Team name", enabled = !saving, isError = nameTooLong)
+                Text(
+                    nameCounterLabel(name),
+                    Modifier.fillMaxWidth().padding(top = 4.dp, end = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (nameTooLong) RedText else InkMuted,
+                    textAlign = TextAlign.End,
+                )
                 Spacer(Modifier.height(10.dp))
                 DevWellTextField(timezone, { timezone = it }, label = "Time zone", enabled = !saving)
             }
@@ -537,15 +562,47 @@ fun TeamSettingsScreen(
                 SectionLabel("Check-in schedule")
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CadenceButton(
-                        "Weekdays only", selected = cadence == "weekdays",
-                        modifier = Modifier.weight(1f),
-                    ) { cadence = "weekdays" }
-                    CadenceButton(
-                        "Every day", selected = cadence == "daily",
-                        modifier = Modifier.weight(1f),
-                    ) { cadence = "daily" }
+                    TeamSettingsRules.CADENCES.forEach { option ->
+                        CadenceButton(
+                            cadenceLabel(option), selected = cadence == option,
+                            modifier = Modifier.weight(1f),
+                        ) { cadence = option }
+                    }
                 }
+            }
+        }
+        item {
+            DevWellCard {
+                SectionLabel("Wellbeing alerts")
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Low-wellbeing threshold",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Ink,
+                    )
+                    Text(threshold.oneDecimal(), style = MaterialTheme.typography.titleSmall, color = DevGreen)
+                }
+                Slider(
+                    value = threshold.toFloat(),
+                    onValueChange = { threshold = snapThreshold(it) },
+                    valueRange = 1f..4f,
+                    steps = 5,   // 1.0, 1.5, ... 4.0 = 7 stops, 5 between the ends
+                    enabled = !saving,
+                    colors = SliderDefaults.colors(
+                        thumbColor = DevGreen,
+                        activeTrackColor = DevGreen,
+                        inactiveTrackColor = TrackGreen,
+                        activeTickColor = Color.Transparent,
+                        inactiveTickColor = Color.Transparent,
+                    ),
+                )
+                Text(
+                    "Team-level setting only. No individual scores are shown.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
             }
         }
         item {
@@ -553,7 +610,7 @@ fun TeamSettingsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SectionLabel("Team members", Modifier.weight(1f))
                     Text(
-                        "${team.memberCount} engineers",
+                        memberCountLabel(team.memberCount),
                         style = MaterialTheme.typography.labelMedium,
                         color = InkMuted,
                     )
@@ -573,17 +630,21 @@ fun TeamSettingsScreen(
             DevWellButton(
                 if (saving) "Saving..." else "Save changes",
                 onClick = {
-                    onSave(team.copy(name = name, timezone = timezone, checkInCadence = cadence))
+                    onSave(
+                        team.copy(
+                            name = name,
+                            timezone = timezone,
+                            checkInCadence = cadence,
+                            lowWellbeingThreshold = threshold,
+                        )
+                    )
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !saving && name.isNotBlank(),
+                enabled = !saving && name.isNotBlank() && !nameTooLong,
             )
         }
     }
 }
-
-private fun normalizeCadence(value: String?): String =
-    if (value.equals("daily", ignoreCase = true)) "daily" else "weekdays"
 
 @Composable
 private fun CadenceButton(
