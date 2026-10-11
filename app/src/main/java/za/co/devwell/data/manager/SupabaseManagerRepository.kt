@@ -24,8 +24,8 @@ import kotlinx.serialization.json.put
 import za.co.devwell.data.ManagerRepository
 import za.co.devwell.model.*
 
-/** Set to true once 20261003120000_member5_team_settings.sql is applied to the shared database. */
-internal const val TEAM_SETTINGS_LIVE = false
+/** True because 20261003120000_member5_team_settings.sql is applied to the shared database. Set to false to stop saving settings. */
+internal const val TEAM_SETTINGS_LIVE = true
 
 /** Join-request review and team settings for managers. Reads only team and join_request rows, never wellbeing data. */
 class SupabaseManagerRepository(
