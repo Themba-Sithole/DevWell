@@ -98,10 +98,10 @@ end $$;
 -- Correct manager.
 select set_config('request.jwt.claim.sub','15000000-0000-4000-8000-000000000001',true);
 select pg_temp.check_true((select count(*)=1 and bool_and(r.request_id='45000000-0000-4000-8000-000000000001'
-  and r.user_id='15000000-0000-4000-8000-000000000007' and r.name='Cara' and r.email='sql-roster-cara@example.invalid')
+  and r.user_id='15000000-0000-4000-8000-000000000007' and r.name='Cara')
   from public.pending_join_requesters('35000000-0000-4000-8000-000000000001') r),
-  'only pending requests for this team, with id, user id, name and email');
-select pg_temp.check_true((select bool_and(array(select jsonb_object_keys(to_jsonb(r)) order by 1)=array['email','name','request_id','user_id'])
+  'only pending requests for this team, with id, user id and name');
+select pg_temp.check_true((select bool_and(array(select jsonb_object_keys(to_jsonb(r)) order by 1)=array['name','request_id','user_id'])
   from public.pending_join_requesters('35000000-0000-4000-8000-000000000001') r), 'requesters return no other columns');
 select pg_temp.check_true((select array_agg(r.name)=array['Dev'] from public.pending_join_requesters('35000000-0000-4000-8000-000000000002') r),
   'requesters are scoped to the requested team');
