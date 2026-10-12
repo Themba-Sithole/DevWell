@@ -14,7 +14,6 @@ const reply = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: responseHeaders });
 
 type CheckInResponses = {
-  user_id?: unknown;
   wellbeing?: unknown;
   workload?: unknown;
   energy?: unknown;
@@ -22,13 +21,21 @@ type CheckInResponses = {
   afterHoursMinutes?: unknown;
 };
 
+function numericValues(rows: CheckInResponses[], field: keyof CheckInResponses, min: number, max: number): number[] {
+  return rows
+    .map((row) => row[field])
+    .filter((value): value is number =>
+      typeof value === "number" && Number.isFinite(value) && value >= min && value <= max
+    );
+}
+
 function average(rows: CheckInResponses[], field: keyof CheckInResponses, min: number, max: number): number | null {
-  const values = rows.map((row) => Number(row[field])).filter((value) => Number.isFinite(value) && value >= min && value <= max);
+  const values = numericValues(rows, field, min, max);
   return values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function anonymousAverage(rows: CheckInResponses[], field: keyof CheckInResponses, min: number, max: number): number | null {
-  const values = rows.map((row) => Number(row[field])).filter((value) => Number.isFinite(value) && value >= min && value <= max);
+  const values = numericValues(rows, field, min, max);
   return values.length < 5 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
