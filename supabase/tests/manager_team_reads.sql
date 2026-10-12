@@ -49,10 +49,10 @@ insert into public.join_request(id,user_id,company_id,team_id,status,reviewed_by
 ('45000000-0000-4000-8000-000000000004','15000000-0000-4000-8000-000000000005','25000000-0000-4000-8000-000000000001','35000000-0000-4000-8000-000000000001','approved','15000000-0000-4000-8000-000000000001',now());
 
 -- Function shape and privileges.
-select pg_temp.check_true((select bool_and(not prosecdef and proconfig::text like '%search_path=""%') from pg_proc
+select pg_temp.check_true((select bool_and(not prosecdef and proconfig @> array['search_path=""']) from pg_proc
   where oid in ('public.pending_join_requesters(uuid)'::regprocedure,'public.team_roster(uuid)'::regprocedure)),
   'public wrappers are SECURITY INVOKER with an empty search_path');
-select pg_temp.check_true((select bool_and(prosecdef and proconfig::text like '%search_path=""%') from pg_proc
+select pg_temp.check_true((select bool_and(prosecdef and proconfig @> array['search_path=""']) from pg_proc
   where oid in ('private.pending_join_requesters(uuid)'::regprocedure,'private.team_roster(uuid)'::regprocedure)),
   'private helpers are SECURITY DEFINER with an empty search_path');
 select pg_temp.check_true(not has_function_privilege('anon','public.pending_join_requesters(uuid)','execute')
