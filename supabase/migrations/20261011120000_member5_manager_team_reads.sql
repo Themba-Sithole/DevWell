@@ -1,7 +1,7 @@
 -- Member 5: limited manager reads (FR3, FR8). Only the SECURITY INVOKER wrappers are exposed through the Data API.
--- Returns names/emails of pending requesters and names of active engineers; never check-in or wellbeing data.
+-- Returns names of pending requesters and names of active engineers; never check-in or wellbeing data.
 create function private.pending_join_requesters(p_team_id uuid)
-returns table (request_id uuid, user_id uuid, name text, email text)
+returns table (request_id uuid, user_id uuid, name text)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   if auth.uid() is null then raise sqlstate 'PT401' using message = 'Sign in first.'; end if;
@@ -12,7 +12,7 @@ begin
     raise sqlstate 'PT403' using message = 'You cannot view this team''s join requests.';
   end if;
   return query
-    select jr.id, u.id, u.name, u.email
+    select jr.id, u.id, u.name
     from public.join_request jr
     join public."user" u on u.id = jr.user_id
     where jr.team_id = p_team_id and jr.status = 'pending'
@@ -45,7 +45,7 @@ grant execute on function private.team_roster(uuid) to authenticated;
 
 -- Public RPC wrappers do not elevate permissions; the private helpers authorize auth.uid().
 create function public.pending_join_requesters(p_team_id uuid)
-returns table (request_id uuid, user_id uuid, name text, email text)
+returns table (request_id uuid, user_id uuid, name text)
 language sql stable security invoker set search_path = '' as $$
   select * from private.pending_join_requesters(p_team_id);
 $$;
