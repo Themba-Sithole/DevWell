@@ -2,7 +2,10 @@ package za.co.devwell.ui.settings
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.AddComment
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MenuBook
@@ -19,11 +24,13 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import za.co.devwell.model.AiMessage
 import za.co.devwell.model.NotificationPreferences
 import za.co.devwell.model.UserRole
 import za.co.devwell.ui.auth.AuthFeedback
@@ -263,99 +270,223 @@ fun NotificationsScreen(
 
 @Composable
 fun AiAssistantScreen(
-    onAsk: (String, Boolean, (Result<String>) -> Unit) -> Unit,
+    messages: List<AiMessage>,
+    sending: Boolean,
+    error: String?,
     liveAssistantAvailable: Boolean = true,
     previewAssistantAvailable: Boolean = false,
+    onSend: (String) -> Unit,
+    onRetry: () -> Unit,
+    onNewChat: () -> Unit,
 ) {
-    var question by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var consent by remember { mutableStateOf(false) }
+    var input by rememberSaveable { mutableStateOf("") }
+    var consent by rememberSaveable { mutableStateOf(false) }
+    val available = liveAssistantAvailable || previewAssistantAvailable
+    val canSend = available && consent && input.isNotBlank() && !sending
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size, sending) {
+        val count = messages.size + if (sending) 1 else 0
+        if (count > 0) listState.animateScrollToItem(count - 1)
+    }
 
     Column(
         Modifier
             .fillMaxSize()
-            .padding(20.dp)
-            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(top = 20.dp)
             .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PageTitle("DevWell assistant", "Guidance only — not professional advice")
-        if (liveAssistantAvailable || previewAssistantAvailable) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(AmberSurface, RoundedCornerShape(12.dp))
-                    .border(1.dp, AmberBorder, RoundedCornerShape(12.dp))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Icon(Icons.Outlined.Shield, null, Modifier.size(18.dp), tint = AmberText)
-                Text(
-                    "This free assistant sends questions to Google Gemini. Google may use questions and " +
-                        "replies to improve its products. Avoid names or sensitive details.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AmberText,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                PageTitle("DevWell assistant", "Guidance only — not professional advice")
+            }
+            if (messages.isNotEmpty()) {
+                TextButton(onClick = onNewChat, enabled = !sending) {
+                    Icon(Icons.Outlined.AddComment, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("New chat")
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (available) {
+            GeminiConsentBanner()
+        } else {
+            AuthFeedback(error = "Sign in with an active account to use the live AI assistant.")
+        }
+        Spacer(Modifier.height(12.dp))
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (messages.isEmpty()) {
+                item { ChatEmptyState() }
+            }
+            items(messages, key = { it.id }) { message -> ChatBubble(message) }
+            if (sending) {
+                item { TypingIndicator() }
+            }
+        }
+        if (error != null) {
+            Spacer(Modifier.height(10.dp))
+            AuthFeedback(error = error)
+            if (messages.lastOrNull()?.fromUser == true) {
+                Spacer(Modifier.height(8.dp))
+                DevWellButton(
+                    "Try again",
+                    onClick = onRetry,
+                    variant = ButtonVariant.Outline,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !sending,
                 )
             }
         }
-        if (!liveAssistantAvailable && !previewAssistantAvailable) {
-            AuthFeedback(error = "Sign in with an active account to use the live AI assistant.")
+        Spacer(Modifier.height(12.dp))
+        if (available && !consent) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = consent,
+                    onCheckedChange = { consent = it },
+                    enabled = !sending,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = DevGreen,
+                        uncheckedColor = BorderGreen,
+                    ),
+                )
+                Text(
+                    "I agree to send this conversation to Google Gemini, which may use it to improve its products.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
         }
-        DevWellTextField(
-            question,
-            { question = it },
-            label = "Ask about workload, focus or wellbeing",
-            placeholder = "How can I protect my focus time this week?",
-            singleLine = false,
-            maxLines = 6,
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = consent,
-                onCheckedChange = { consent = it },
-                enabled = !loading,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = DevGreen,
-                    uncheckedColor = BorderGreen,
-                ),
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DevWellTextField(
+                input,
+                { input = it },
+                modifier = Modifier.weight(1f),
+                placeholder = "Ask about workload, focus or wellbeing",
+                enabled = available && !sending,
+                singleLine = false,
+                maxLines = 4,
             )
-            Text(
-                "I agree to send this question to Google Gemini, which may use it to improve its products.",
-                style = MaterialTheme.typography.bodySmall,
-                color = InkMuted,
+            SendButton(
+                enabled = canSend,
+                onClick = {
+                    val text = input
+                    input = ""
+                    onSend(text)
+                },
             )
         }
-        DevWellButton(
-            if (loading) "Thinking…" else "Ask",
-            onClick = {
-                loading = true
-                error = null
-                answer = null
-                consent = false
-                onAsk(question, previewAssistantAvailable) { result ->
-                    loading = false
-                    result.onSuccess { answer = it }.onFailure { error = it.message }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = (liveAssistantAvailable || previewAssistantAvailable) && question.isNotBlank() && consent && !loading,
+    }
+}
+
+@Composable
+private fun GeminiConsentBanner() {
+    Row(
+        Modifier.fillMaxWidth()
+            .background(AmberSurface, RoundedCornerShape(12.dp))
+            .border(1.dp, AmberBorder, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(Icons.Outlined.Shield, null, Modifier.size(18.dp), tint = AmberText)
+        Text(
+            "This free assistant sends your conversation to Google Gemini. Google may use it to " +
+                "improve its products. Avoid names or sensitive details.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AmberText,
         )
-        error?.let { AuthFeedback(error = it) }
-        answer?.let {
-            DevWellCard(containerColor = AccentSurface, borderColor = TrackGreen) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp), tint = DevGreen)
-                    Text(
-                        "Assistant",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = DevGreen,
-                    )
+    }
+}
+
+@Composable
+private fun ChatEmptyState() {
+    DevWellCard(containerColor = AccentSurface, borderColor = TrackGreen) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(18.dp), tint = DevGreen)
+            Text("Start a conversation", style = MaterialTheme.typography.titleSmall, color = DevGreen)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Ask about workload, focus, communication or general wellbeing. This conversation isn't " +
+                "saved, and nothing is sent until you tap send.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Ink,
+        )
+    }
+}
+
+@Composable
+private fun ChatBubble(message: AiMessage) {
+    val fromUser = message.fromUser
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
+    ) {
+        Column(horizontalAlignment = if (fromUser) Alignment.End else Alignment.Start) {
+            if (!fromUser) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(14.dp), tint = DevGreen)
+                    Text("Assistant", style = MaterialTheme.typography.labelSmall, color = DevGreen)
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = Ink)
+                Spacer(Modifier.height(4.dp))
+            }
+            Box(
+                Modifier
+                    .widthIn(max = 300.dp)
+                    .background(if (fromUser) DevGreen else AccentSurface, RoundedCornerShape(16.dp))
+                    .border(1.dp, if (fromUser) DevGreen else TrackGreen, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    message.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (fromUser) Color.White else Ink,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun TypingIndicator() {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        Row(
+            Modifier
+                .background(AccentSurface, RoundedCornerShape(16.dp))
+                .border(1.dp, TrackGreen, RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = DevGreen)
+            Text("Assistant is thinking…", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+        }
+    }
+}
+
+@Composable
+private fun SendButton(enabled: Boolean, onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(48.dp)
+            .background(if (enabled) DevGreen else TrackGreen, CircleShape),
+    ) {
+        Icon(
+            Icons.AutoMirrored.Outlined.Send,
+            contentDescription = "Send",
+            tint = if (enabled) Color.White else InkMuted,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }

@@ -60,4 +60,21 @@ class TrendsAnalysisTest {
         assertEquals(7.0, summary.averageEnergy!!, 0.0)
         assertEquals(8.0, summary.averageFocus!!, 0.0)
     }
+
+    @Test fun dateOfParsesIsoAndRejectsRelativeLabels() {
+        assertEquals(LocalDate.of(2026, 10, 13), TrendsAnalysis.dateOf(checkIn("2026-10-13")))
+        assertNull(TrendsAnalysis.dateOf(checkIn("Today")))
+        assertNull(TrendsAnalysis.dateOf(checkIn("not-a-date")))
+    }
+
+    @Test fun onDateAndTodayCheckInFindTheRightEntry() {
+        val today = LocalDate.of(2026, 10, 13)
+        val yesterday = checkIn("2026-10-12", wellbeing = 5)
+        val current = checkIn("2026-10-13", wellbeing = 2)
+        val history = listOf(yesterday, current)
+
+        assertEquals(current, TrendsAnalysis.onDate(history, today))
+        assertEquals(current, TrendsAnalysis.todayCheckIn(history, today))
+        assertNull(TrendsAnalysis.todayCheckIn(listOf(yesterday), today))
+    }
 }

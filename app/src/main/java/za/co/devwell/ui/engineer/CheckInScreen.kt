@@ -46,6 +46,11 @@ private const val NOT_SELECTED = -1
 internal fun afterHoursMinutesFor(choiceIndex: Int): Int =
     AFTER_HOURS_MINUTES[choiceIndex.coerceIn(0, AFTER_HOURS_MINUTES.lastIndex)]
 
+internal fun afterHoursIndexFor(minutes: Int): Int =
+    AFTER_HOURS_MINUTES.indexOfFirst { it == minutes }
+        .takeIf { it >= 0 }
+        ?: AFTER_HOURS_MINUTES.withIndex().minByOrNull { kotlin.math.abs(it.value - minutes) }!!.index
+
 internal fun buildCheckInDraft(
     wellbeingIndex: Int,
     workloadIndex: Int,
@@ -68,15 +73,18 @@ fun CheckInScreen(
     onSubmit: (CheckInDraft) -> Unit,
     isSaving: Boolean = false,
     errorMessage: String? = null,
+    initial: CheckInDraft? = null,
 ) {
-    // rememberSaveable keeps answers if the phone rotates.
+    val editing = initial != null
+    // rememberSaveable keeps answers if the phone rotates. When editing, the
+    // flow starts pre-filled with today's saved answers.
     var step by rememberSaveable { mutableIntStateOf(1) }
-    var wellbeing by rememberSaveable { mutableIntStateOf(NOT_SELECTED) }
-    var workload by rememberSaveable { mutableIntStateOf(NOT_SELECTED) }
-    var energy by rememberSaveable { mutableFloatStateOf(5f) }
-    var focus by rememberSaveable { mutableFloatStateOf(5f) }
-    var afterHours by rememberSaveable { mutableIntStateOf(NOT_SELECTED) }
-    var note by rememberSaveable { mutableStateOf("") }
+    var wellbeing by rememberSaveable { mutableIntStateOf(initial?.wellbeing?.minus(1) ?: NOT_SELECTED) }
+    var workload by rememberSaveable { mutableIntStateOf(initial?.workload?.minus(1) ?: NOT_SELECTED) }
+    var energy by rememberSaveable { mutableFloatStateOf(initial?.energy?.toFloat() ?: 5f) }
+    var focus by rememberSaveable { mutableFloatStateOf(initial?.focus?.toFloat() ?: 5f) }
+    var afterHours by rememberSaveable { mutableIntStateOf(initial?.let { afterHoursIndexFor(it.afterHoursMinutes) } ?: NOT_SELECTED) }
+    var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
     val titles = listOf("Today's wellbeing", "Workload", "Energy and focus", "After-hours work", "Review")
 
     // Steps 1, 2 and 4 need an answer before "Next" is allowed.
@@ -92,7 +100,7 @@ fun CheckInScreen(
             IconButton(onClick = onCancel, enabled = !isSaving) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Close check-in")
             }
-            Text("Check-in", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text(if (editing) "Update check-in" else "Check-in", style = MaterialTheme.typography.titleMedium, color = Ink)
             Spacer(Modifier.weight(1f))
             Text("Step $step of 5", style = MaterialTheme.typography.labelMedium, color = InkMuted)
         }
@@ -158,7 +166,15 @@ fun CheckInScreen(
                 variant = ButtonVariant.Outline,
             )
             DevWellButton(
-                if (isSaving) "Saving..." else if (step < 5) "Next" else "View my trends",
+                if (isSaving) {
+                    "Saving..."
+                } else if (step < 5) {
+                    "Next"
+                } else if (editing) {
+                    "Save changes"
+                } else {
+                    "View my trends"
+                },
                 onClick = {
                     if (step < 5) {
                         step++
