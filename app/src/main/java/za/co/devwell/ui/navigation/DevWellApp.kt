@@ -1,5 +1,11 @@
 package za.co.devwell.ui.navigation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -80,15 +86,32 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
         return
     }
     // Auth screens are outside the protected graph. Back cannot reopen a previous session.
-    when (destination) {
-        EntryDestination.LOGIN -> LoginScreen(state, authViewModel::signIn, authViewModel::signUp,
-            authViewModel::clearFeedback, authViewModel::startPreview)
-        EntryDestination.ONBOARDING -> OnboardingScreen(state, authViewModel::submitJoinRequest,
-            authViewModel::refreshDirectory, authViewModel::refreshProfile, authViewModel::signOut)
-        EntryDestination.PENDING -> PendingApprovalScreen(state, authViewModel::refreshProfile,
-            authViewModel::signOut, authViewModel::previewReview)
-        else -> key(state.user!!.id, state.user!!.role, state.preview) {
-            RoleApp(viewModel, state.user!!, authViewModel::signOut, state.preview)
+    AnimatedContent(
+        targetState = destination,
+        transitionSpec = {
+            fadeIn(tween(300, easing = FastOutSlowInEasing)) togetherWith
+                fadeOut(tween(180, easing = FastOutSlowInEasing))
+        },
+        label = "entryDestination",
+        modifier = Modifier.fillMaxSize(),
+    ) { target ->
+        when (target) {
+            EntryDestination.LOGIN -> LoginScreen(state, authViewModel::signIn, authViewModel::signUp,
+                authViewModel::clearFeedback, authViewModel::startPreview)
+            EntryDestination.ONBOARDING -> OnboardingScreen(state, authViewModel::submitJoinRequest,
+                authViewModel::refreshDirectory, authViewModel::refreshProfile, authViewModel::signOut)
+            EntryDestination.PENDING -> PendingApprovalScreen(state, authViewModel::refreshProfile,
+                authViewModel::signOut, authViewModel::previewReview)
+            else -> {
+                // Keep the user for the duration of the outgoing cross-fade so sign-out
+                // does not tear down the protected graph mid-animation.
+                val activeUser = remember(target) { state.user }
+                if (activeUser != null) {
+                    key(activeUser.id, activeUser.role, state.preview) {
+                        RoleApp(viewModel, activeUser, authViewModel::signOut, state.preview)
+                    }
+                }
+            }
         }
     }
 }
@@ -103,6 +126,8 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     val adminUsers by viewModel.adminUsers.collectAsStateWithLifecycle()
     val companies by viewModel.companies.collectAsStateWithLifecycle()
     val teams by viewModel.teams.collectAsStateWithLifecycle()
+
+    val todaysCheckIn = TrendsAnalysis.todayCheckIn(checkIns)
 
     val navController = rememberNavController()
 
@@ -193,10 +218,14 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 UserRole.ADMIN -> Routes.ADMIN_HOME
             },
             modifier = Modifier.padding(padding),
+            enterTransition = forwardEnter,
+            exitTransition = forwardExit,
+            popEnterTransition = backwardEnter,
+            popExitTransition = backwardExit,
         ) {
             if (user.role == UserRole.ENGINEER) {
             // Engineer
-            composable(Routes.ENGINEER_HOME) {
+            tabComposable(Routes.ENGINEER_HOME) {
                 EngineerHomeScreen(
                     name = user.name,
                     onCheckIn = {
@@ -207,6 +236,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onInsights = { navController.navigate(Routes.INSIGHTS) },
                     onTeamOverview = { navController.navigate(Routes.TEAM_OVERVIEW) },
                     onProfile = { navController.navigate(Routes.ENGINEER_PROFILE) },
+                    checkedInToday = todaysCheckIn != null,
                 )
             }
                 composable(Routes.CHECK_IN) {
@@ -230,6 +260,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         onSubmit = { viewModel.saveCheckIn(it) },
                         isSaving = checkInState is za.co.devwell.viewmodel.SaveState.Loading,
                         errorMessage = (checkInState as? za.co.devwell.viewmodel.SaveState.Error)?.message,
+                        initial = todaysCheckIn?.values,
                     )
                 }
             composable(Routes.TRENDS) {
@@ -241,7 +272,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             composable(Routes.TEAM_OVERVIEW) {
                 TeamOverviewScreen(aggregate, onBack = { navController.popBackStack() })
             }
-            composable(Routes.PROJECTS) {
+            tabComposable(Routes.PROJECTS) {
                 ProjectsScreen(
                     projects = projects,
                     onToggle = viewModel::toggleTask,
@@ -256,16 +287,20 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             composable(Routes.PRIVACY_PREVIEW) {
                 PrivacyPreviewScreen(aggregate, onBack = { navController.popBackStack() })
             }
-            composable(Routes.AI_ASSISTANT) {
+            tabComposable(Routes.AI_ASSISTANT) {
+                val chat by viewModel.aiChat.collectAsStateWithLifecycle()
                 AiAssistantScreen(
-                    onAsk = { question, isPreview, callback ->
-                        viewModel.askAi(question, isPreview, callback)
-                    },
+                    messages = chat.messages,
+                    sending = chat.sending,
+                    error = chat.error,
                     liveAssistantAvailable = !preview && user.status == AccountStatus.ACTIVE,
                     previewAssistantAvailable = preview,
+                    onSend = { text -> viewModel.sendAiMessage(text, preview) },
+                    onRetry = { viewModel.retryAi(preview) },
+                    onNewChat = viewModel::clearAiChat,
                 )
             }
-            composable(Routes.ENGINEER_PROFILE) {
+            tabComposable(Routes.ENGINEER_PROFILE) {
                 val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.ENGINEER,
@@ -287,7 +322,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             }
             if (user.role == UserRole.MANAGER) {
             // Manager
-            composable(Routes.MANAGER_HOME) {
+            tabComposable(Routes.MANAGER_HOME) {
                 ManagerHomeScreen(
                     aggregate = aggregate,
                     onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
@@ -296,14 +331,14 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     managerName = user.name,
                 )
             }
-            composable(Routes.MANAGER_TEAM) {
+            tabComposable(Routes.MANAGER_TEAM) {
                 ManagerTeamScreen(
                     aggregate = aggregate,
                     onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
                 )
             }
-            composable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }
+            tabComposable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }
             composable(Routes.JOIN_REQUESTS) {
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
                 JoinRequestsRoute(managerViewModel)
@@ -312,7 +347,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
                 TeamSettingsRoute(managerViewModel)
             }
-            composable(Routes.MANAGER_PROFILE) {
+            tabComposable(Routes.MANAGER_PROFILE) {
                 val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.MANAGER,
@@ -334,14 +369,14 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             }
             if (user.role == UserRole.ADMIN) {
             // Admin
-            composable(Routes.ADMIN_HOME) {
+            tabComposable(Routes.ADMIN_HOME) {
                 AdminHomeScreen(
                     stats = adminStats,
                     users = adminUsers,
                     onSetUserStatus = viewModel::setUserStatus,
                 )
             }
-            composable(Routes.ADMIN_PROFILE) {
+            tabComposable(Routes.ADMIN_PROFILE) {
                 val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.ADMIN,

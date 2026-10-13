@@ -33,6 +33,7 @@ fun EngineerHomeScreen(
     onInsights: () -> Unit,
     onTeamOverview: () -> Unit,
     onProfile: () -> Unit,
+    checkedInToday: Boolean = false,
 ) {
     val firstName = name.trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifEmpty { "there" }
     LazyColumn(
@@ -67,7 +68,11 @@ fun EngineerHomeScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Your check-in helps you and your team stay healthy and balanced.",
+                    if (checkedInToday) {
+                        "You've checked in today. Made a mistake? You can update your answers."
+                    } else {
+                        "Your check-in helps you and your team stay healthy and balanced."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                 )
@@ -79,7 +84,7 @@ fun EngineerHomeScreen(
                 }
                 Spacer(Modifier.height(16.dp))
                 DevWellButton(
-                    "Start check-in", onCheckIn,
+                    if (checkedInToday) "Update today's check-in" else "Start check-in", onCheckIn,
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = Icons.Outlined.PlayArrow,
                 )

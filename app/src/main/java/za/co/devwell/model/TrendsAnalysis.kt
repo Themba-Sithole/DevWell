@@ -28,6 +28,18 @@ object TrendsAnalysis {
 
     fun today(): LocalDate = LocalDate.now(appZone)
 
+    /** Parses a check-in's ISO date label; null for relative/legacy labels like "Today". */
+    fun dateOf(checkIn: CheckIn): LocalDate? =
+        runCatching { LocalDate.parse(checkIn.dateLabel.take(10)) }.getOrNull()
+
+    /** The check-in recorded on [date], if any. Only one check-in is allowed per day. */
+    fun onDate(checkIns: List<CheckIn>, date: LocalDate): CheckIn? =
+        checkIns.firstOrNull { dateOf(it) == date }
+
+    /** Today's check-in in the app timezone, if the engineer has already checked in. */
+    fun todayCheckIn(checkIns: List<CheckIn>, today: LocalDate = today()): CheckIn? =
+        onDate(checkIns, today)
+
     fun range(period: TrendsPeriod, today: LocalDate = today()): TrendsDateRange {
         val monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         return when (period) {
@@ -46,7 +58,7 @@ object TrendsAnalysis {
     ): List<CheckIn> {
         val range = range(period, today)
         return checkIns.mapNotNull { checkIn ->
-            val date = runCatching { LocalDate.parse(checkIn.dateLabel.take(10)) }.getOrNull()
+            val date = dateOf(checkIn)
             if (date != null && range.contains(date)) date to checkIn else null
         }.sortedBy { it.first }.map { it.second }
     }
