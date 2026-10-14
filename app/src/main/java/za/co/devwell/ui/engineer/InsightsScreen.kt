@@ -18,13 +18,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.CheckIn
 import za.co.devwell.model.PrivacyPolicy
 import za.co.devwell.model.TeamAggregate
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.manager.TeamBarChart
+import za.co.devwell.ui.manager.afterHoursInsight
+import za.co.devwell.ui.manager.focusInsight
 import za.co.devwell.ui.manager.teamChartBars
+import za.co.devwell.ui.manager.wellbeingDisplay
+import za.co.devwell.ui.manager.workloadInsight
 import za.co.devwell.ui.theme.*
 
 @Composable
@@ -232,7 +237,7 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
                 }
             }
             else -> {
-                val wellbeing = safe.averageWellbeing ?: 0.0
+                val wellbeing = wellbeingDisplay(safe.averageWellbeing)
                 DevWellCard {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -243,31 +248,21 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
-                                "%.1f".format(wellbeing),
+                                wellbeing.score,
                                 style = MaterialTheme.typography.headlineLarge,
                                 color = DevGreen,
                             )
-                            Text(
-                                "/5",
-                                Modifier.padding(bottom = 6.dp, start = 4.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = InkMuted,
-                            )
+                            if (wellbeing.ringFraction != null) {
+                                Text(
+                                    "/5",
+                                    Modifier.padding(bottom = 6.dp, start = 4.dp),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = InkMuted,
+                                )
+                            }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Chip(
-                            when {
-                                wellbeing >= 4.5 -> "Great"
-                                wellbeing >= 4.0 -> "Good"
-                                wellbeing >= 3.0 -> "Okay"
-                                else -> "Needs attention"
-                            },
-                            skin = when {
-                                wellbeing >= 4.0 -> ChipSkin.Green
-                                wellbeing >= 3.0 -> ChipSkin.Neutral
-                                else -> ChipSkin.Amber
-                            },
-                        )
+                        Chip(wellbeing.band, skin = wellbeing.skin)
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "${safe.responseCount} anonymous participants this period",
@@ -278,13 +273,15 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TeamMiniStat(
-                        value = when {
-                            (safe.averageWorkload ?: 0.0) <= 1.5 -> "Very light"
-                            (safe.averageWorkload ?: 0.0) <= 2.5 -> "Light"
-                            (safe.averageWorkload ?: 0.0) <= 3.5 -> "Moderate"
-                            (safe.averageWorkload ?: 0.0) <= 4.5 -> "Heavy"
-                            else -> "Very heavy"
-                        },
+                        value = safe.averageWorkload?.takeIf { it.isFinite() }?.let { workload ->
+                            when {
+                                workload <= 1.5 -> "Very light"
+                                workload <= 2.5 -> "Light"
+                                workload <= 3.5 -> "Moderate"
+                                workload <= 4.5 -> "Heavy"
+                                else -> "Very heavy"
+                            }
+                        } ?: "-",
                         label = "Avg. workload",
                         modifier = Modifier.weight(1f),
                     )
@@ -299,33 +296,33 @@ fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
                         modifier = Modifier.weight(1f),
                     )
                 }
-                DevWellCard {
-                    Text("Team highlights", style = MaterialTheme.typography.titleSmall, color = Ink)
-                    Spacer(Modifier.height(10.dp))
-                    val highlights = listOf(
-                        ((safe.averageWorkload ?: 0.0) <= 3.5) to "Workload is balanced",
-                        ((safe.averageFocus ?: 0.0) >= 6.5) to "Focus time is solid",
-                        ((safe.averageAfterHoursMinutes ?: 0.0) <= 60.0) to "After-hours work is low",
-                    )
-                    highlights.forEach { (positive, text) ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                Modifier.size(8.dp)
-                                    .background(
-                                        if (positive) AccentGreen else AmberDot,
-                                        RoundedCornerShape(50),
-                                    ),
-                            )
-                            Text(text, style = MaterialTheme.typography.bodyMedium, color = Ink)
+                val highlights = teamHighlights(
+                    safe.averageWorkload, safe.averageFocus, safe.averageAfterHoursMinutes,
+                )
+                if (highlights.isNotEmpty()) {
+                    DevWellCard {
+                        Text("Team highlights", style = MaterialTheme.typography.titleSmall, color = Ink)
+                        Spacer(Modifier.height(10.dp))
+                        highlights.forEach { (positive, text) ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    Modifier.size(8.dp)
+                                        .background(
+                                            if (positive) AccentGreen else AmberDot,
+                                            RoundedCornerShape(50),
+                                        ),
+                                )
+                                Text(text, style = MaterialTheme.typography.bodyMedium, color = Ink)
+                            }
                         }
                     }
                 }
                 aggregate.let { agg ->
-                    teamChartBars(agg)?.let { bars -> TeamBarChart(bars) }
+                    teamChartBars(agg)?.takeIf { it.isNotEmpty() }?.let { bars -> TeamBarChart(bars) }
                 }
             }
         }
@@ -347,4 +344,34 @@ private fun TeamMiniStat(value: String, label: String, modifier: Modifier = Modi
             Text(label, style = MaterialTheme.typography.labelSmall, color = InkMuted)
         }
     }
+}
+
+/** One "Team highlights" line. The dot colour and the sentence come from the same result. */
+internal data class TeamHighlight(val positive: Boolean, val text: String)
+
+/**
+ * Built from anonymous team averages only. Thresholds and the missing check come from the
+ * Manager insight helpers, so a missing or non-finite average hides its line instead of
+ * being judged as 0.
+ */
+internal fun teamHighlights(
+    workload: Double?,
+    focus: Double?,
+    afterHoursMinutes: Double?,
+): List<TeamHighlight> = listOfNotNull(
+    workloadInsight(workload)?.let {
+        TeamHighlight(!it.amber, if (it.amber) "Workload is elevated" else "Workload is balanced")
+    },
+    focusInsight(focus)?.let {
+        TeamHighlight(!it.amber, if (it.amber) "Focus time could use support" else "Focus time is solid")
+    },
+    afterHoursInsight(afterHoursMinutes)?.let {
+        TeamHighlight(!it.amber, if (it.amber) "After-hours work is trending up" else "After-hours work is low")
+    },
+)
+
+@Preview(showBackground = true, name = "Team Overview: averages missing")
+@Composable
+private fun TeamOverviewMissingAveragesPreview() {
+    DevWellTheme { TeamOverviewScreen(TeamAggregate(teamId = "preview", responseCount = 5), onBack = {}) }
 }
