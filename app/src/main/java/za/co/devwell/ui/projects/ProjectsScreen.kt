@@ -1,5 +1,6 @@
 package za.co.devwell.ui.projects
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import za.co.devwell.data.projects.formatDeadline
 import za.co.devwell.data.projects.isValidDeadline
 import za.co.devwell.model.DevProject
 import za.co.devwell.model.ProjectTask
@@ -40,7 +42,18 @@ import za.co.devwell.model.SmartTip
 import za.co.devwell.model.SmartTipsEngine
 import za.co.devwell.model.TaskPriority
 import za.co.devwell.model.TaskStatus
+import za.co.devwell.ui.components.DevWellDateField
+import za.co.devwell.ui.components.DevWellDialog
+import za.co.devwell.ui.components.DevWellTextField
+import za.co.devwell.ui.components.PrefRow
+import za.co.devwell.ui.components.SectionLabel
+import za.co.devwell.ui.theme.BorderGreen
+import za.co.devwell.ui.theme.CardWhite
+import za.co.devwell.ui.theme.DevGreen
 import za.co.devwell.ui.theme.Forest
+import za.co.devwell.ui.theme.Ink
+import za.co.devwell.ui.theme.InkMuted
+import za.co.devwell.ui.theme.RedText
 
 private val ProjectColours = listOf(
     "#174A35", "#1F6B4C", "#2D6E9E", "#B7791F", "#C0392B", "#6B4F8F",
@@ -478,20 +491,25 @@ private fun ProjectMenu(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = CardWhite,
+            border = BorderStroke(1.dp, BorderGreen),
+            shadowElevation = 8.dp,
+        ) {
             DropdownMenuItem(
                 text = { Text("Edit project") },
                 onClick = onEdit,
                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                colors = MenuDefaults.itemColors(textColor = Ink, leadingIconColor = DevGreen),
             )
             DropdownMenuItem(
                 text = { Text("Delete project") },
                 onClick = onDelete,
                 leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
-                colors = MenuDefaults.itemColors(
-                    textColor = MaterialTheme.colorScheme.error,
-                    leadingIconColor = MaterialTheme.colorScheme.error,
-                ),
+                colors = MenuDefaults.itemColors(textColor = RedText, leadingIconColor = RedText),
             )
         }
     }
@@ -623,20 +641,25 @@ private fun TaskMenu(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = CardWhite,
+            border = BorderStroke(1.dp, BorderGreen),
+            shadowElevation = 8.dp,
+        ) {
             DropdownMenuItem(
                 text = { Text("Edit task") },
                 onClick = onEdit,
                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                colors = MenuDefaults.itemColors(textColor = Ink, leadingIconColor = DevGreen),
             )
             DropdownMenuItem(
                 text = { Text("Delete task") },
                 onClick = onDelete,
                 leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
-                colors = MenuDefaults.itemColors(
-                    textColor = MaterialTheme.colorScheme.error,
-                    leadingIconColor = MaterialTheme.colorScheme.error,
-                ),
+                colors = MenuDefaults.itemColors(textColor = RedText, leadingIconColor = RedText),
             )
         }
     }
@@ -673,59 +696,40 @@ private fun ProjectFormDialog(
     var description by remember(initial) { mutableStateOf(initial.description) }
     var deadline by remember(initial) { mutableStateOf(initial.deadline) }
     var colour by remember(initial) { mutableStateOf(initial.colour) }
+    val deadlineValid = isValidDeadline(deadline)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
+    DevWellDialog(
+        title = title,
+        subtitle = "Track work alongside your wellbeing",
+        icon = Icons.Outlined.Checklist,
+        confirmLabel = confirmLabel,
+        confirmEnabled = name.isNotBlank() && deadlineValid,
+        onConfirm = {
+            onConfirm(
+                initial.copy(
+                    name = name.trim(),
+                    description = description.trim(),
+                    deadline = deadline.trim(),
+                    colour = colour,
                 )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = deadline,
-                    onValueChange = { deadline = it },
-                    label = { Text("Deadline") },
-                    placeholder = { Text("e.g. 18 Sep") },
-                    supportingText = {
-                        if (deadline.isNotBlank() && !isValidDeadline(deadline)) {
-                            Text("Use yyyy-MM-dd, d MMM, or d MMM yyyy")
-                        }
-                    },
-                    isError = deadline.isNotBlank() && !isValidDeadline(deadline),
-                    singleLine = true,
-                )
-                ColourPicker(colour, onSelect = { colour = it })
-            }
+            )
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onConfirm(
-                        initial.copy(
-                            name = name.trim(),
-                            description = description.trim(),
-                            deadline = deadline.trim(),
-                            colour = colour,
-                        )
-                    )
-                },
-                enabled = name.isNotBlank() && isValidDeadline(deadline),
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+        onDismiss = onDismiss,
+    ) {
+        DevWellTextField(name, { name = it }, label = "Project name")
+        DevWellTextField(description, { description = it }, label = "Description (optional)")
+        DevWellDateField(
+            value = deadline,
+            onDateSelected = { deadline = formatDeadline(it) },
+            label = "Deadline",
+            placeholder = "Pick a deadline",
+        )
+        Column {
+            SectionLabel("Colour")
+            Spacer(Modifier.height(8.dp))
+            ColourPicker(colour, onSelect = { colour = it })
+        }
+    }
 }
 
 @Composable
@@ -780,85 +784,79 @@ private fun TaskFormDialog(
     var priority by remember(initial) { mutableStateOf(initial.priority) }
     var note by remember(initial) { mutableStateOf(initial.note) }
     var status by remember(initial) { mutableStateOf(initial.status) }
+    val deadlineValid = isValidDeadline(deadline)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("$title in ${project.name}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = taskTitle,
-                    onValueChange = { taskTitle = it },
-                    label = { Text("Task title") },
-                    singleLine = true,
+    DevWellDialog(
+        title = title,
+        subtitle = project.name,
+        icon = Icons.Outlined.Add,
+        confirmLabel = confirmLabel,
+        confirmEnabled = taskTitle.isNotBlank() && deadlineValid,
+        onConfirm = {
+            onConfirm(
+                initial.copy(
+                    title = taskTitle.trim(),
+                    deadline = deadline.trim(),
+                    priority = priority,
+                    note = note.trim(),
+                    status = status,
                 )
-                OutlinedTextField(
-                    value = deadline,
-                    onValueChange = { deadline = it },
-                    label = { Text("Deadline") },
-                    placeholder = { Text("e.g. 18 Sep") },
-                    supportingText = {
-                        if (deadline.isNotBlank() && !isValidDeadline(deadline)) {
-                            Text("Use yyyy-MM-dd, d MMM, or d MMM yyyy")
-                        }
-                    },
-                    isError = deadline.isNotBlank() && !isValidDeadline(deadline),
-                    singleLine = true,
-                )
-                Text(
-                    "Priority",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TaskPriority.entries.forEach { option ->
-                        FilterChip(
-                            selected = priority == option,
-                            onClick = { priority = option },
-                            label = { Text(option.name) },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("Note") },
-                    minLines = 2,
-                    maxLines = 3,
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Completed", style = MaterialTheme.typography.labelLarge)
-                    Switch(
-                        checked = status == TaskStatus.DONE,
-                        onCheckedChange = { status = if (it) TaskStatus.DONE else TaskStatus.OPEN },
+            )
+        },
+        onDismiss = onDismiss,
+    ) {
+        DevWellTextField(taskTitle, { taskTitle = it }, label = "Task title")
+        DevWellDateField(
+            value = deadline,
+            onDateSelected = { deadline = formatDeadline(it) },
+            label = "Deadline",
+            placeholder = "Pick a deadline",
+        )
+        Column {
+            SectionLabel("Priority")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TaskPriority.entries.forEach { option ->
+                    PriorityOption(
+                        label = option.name.lowercase().replaceFirstChar { it.uppercase() },
+                        selected = priority == option,
+                        modifier = Modifier.weight(1f),
+                        onClick = { priority = option },
                     )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onConfirm(
-                        initial.copy(
-                            title = taskTitle.trim(),
-                            deadline = deadline.trim(),
-                            priority = priority,
-                            note = note.trim(),
-                            status = status,
-                        )
-                    )
-                },
-                enabled = taskTitle.isNotBlank() && isValidDeadline(deadline),
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+        }
+        DevWellTextField(note, { note = it }, label = "Note (optional)", singleLine = false, maxLines = 3)
+        PrefRow(
+            "Completed",
+            checked = status == TaskStatus.DONE,
+            onCheckedChange = { status = if (it) TaskStatus.DONE else TaskStatus.OPEN },
+        )
+    }
+}
+
+@Composable
+private fun PriorityOption(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) DevGreen else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (selected) DevGreen else BorderGreen),
+    ) {
+        Text(
+            label,
+            Modifier.fillMaxWidth().padding(vertical = 11.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) Color.White else InkMuted,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
@@ -867,19 +865,15 @@ private fun DeleteTaskDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Delete task?") },
-        text = { Text("\"${task.title}\" will be permanently removed.") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+    DevWellDialog(
+        title = "Delete task?",
+        subtitle = "\"${task.title}\" will be permanently removed.",
+        icon = Icons.Outlined.Delete,
+        confirmLabel = "Delete",
+        destructive = true,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {}
 }
 
 @Composable
@@ -888,21 +882,15 @@ private fun DeleteProjectDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Delete project?") },
-        text = {
-            Text("\"${project.name}\" and its ${project.tasks.size} task(s) will be permanently removed.")
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
+    DevWellDialog(
+        title = "Delete project?",
+        subtitle = "\"${project.name}\" and its ${project.tasks.size} task(s) will be permanently removed.",
+        icon = Icons.Outlined.Delete,
+        confirmLabel = "Delete",
+        destructive = true,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    ) {}
 }
 
 @Composable
