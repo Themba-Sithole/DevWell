@@ -95,6 +95,14 @@ Only intentional database error messages are exposed; internal details are hidde
 
 ## Add a company, team and manager later
 
+For the preconfigured DevWell demo only, the trusted-SQL script
+[setup-devwell-directory.sql](./setup-devwell-directory.sql) creates or activates the
+DevWell company and Software Engineering team, then assigns the configured manager
+account. It refuses to run until that account's email is confirmed. Review the hard-coded
+email and directory names before running it, and run it only on the intended Supabase
+project. The directory remains empty unless this optional script or equivalent trusted
+provisioning is deliberately applied.
+
 1. Have the manager register and confirm their email normally.
 2. In a trusted Supabase SQL Editor session, create an active company and a team linked
    to it. Use their generated IDs for the following updates.

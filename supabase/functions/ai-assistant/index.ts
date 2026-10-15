@@ -11,6 +11,37 @@ const reply = (status: number, body: unknown) =>
 
 const systemInstruction = `You are DevWell, a supportive workplace wellbeing assistant. Offer practical, low-risk guidance about focus, workload, communication, and general wellbeing. You are not a clinician: do not diagnose conditions, recommend medication, or present your response as professional medical advice. Keep replies concise and kind. If someone describes immediate danger or intent to harm themselves or another person, encourage them to contact local emergency services or a trusted person now; do not guess a hotline number. Do not ask for identifying details.`;
 
+type ChatTurn = { role: "user" | "model"; text: string };
+
+/**
+ * Validates the client-sent transcript. Accepts only user/model turns, trims
+ * surrounding model turns so the conversation starts with the user, and merges
+ * any consecutive same-role turns (Gemini expects alternating roles).
+ */
+function normalizeTurns(raw: unknown): ChatTurn[] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 40) return null;
+  const turns: ChatTurn[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const entry = item as Record<string, unknown>;
+    if (entry.role !== "user" && entry.role !== "model" && entry.role !== "assistant") return null;
+    if (typeof entry.text !== "string") return null;
+    const text = entry.text.trim();
+    if (!text || text.length > 4000) return null;
+    const role: ChatTurn["role"] = entry.role === "user" ? "user" : "model";
+    const last = turns[turns.length - 1];
+    if (last && last.role === role) {
+      last.text = `${last.text}\n${text}`;
+    } else {
+      turns.push({ role, text });
+    }
+  }
+  while (turns.length > 0 && turns[0].role === "model") turns.shift();
+  if (turns.length === 0 || turns[turns.length - 1].role !== "user") return null;
+  return turns;
+}
+
+
 async function hashRateLimitSubject(subject: string, salt: string): Promise<string> {
   const bytes = new TextEncoder().encode(`${salt}:${subject}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -40,7 +71,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.length;
-        if (size > 4096) {
+        if (size > 16384) {
           await reader.cancel();
           return reply(413, { error: "Request is too large." });
         }
@@ -64,14 +95,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
       return reply(400, { error: "Send a JSON object." });
     }
     const payload = body as Record<string, unknown>;
-    if (Object.keys(payload).some((key) => !["question", "consent", "preview"].includes(key))) {
-      return reply(400, { error: "Only a question and consent value are accepted." });
+    if (Object.keys(payload).some((key) => !["messages", "consent", "preview"].includes(key))) {
+      return reply(400, { error: "Only a conversation and consent value are accepted." });
     }
     if (payload.consent !== true) return reply(400, { error: "Consent is required before sending a question." });
-    if (typeof payload.question !== "string") return reply(400, { error: "Send a question." });
-    const question = payload.question.trim();
-    if (!question || question.length > 1000) {
-      return reply(400, { error: "Questions must be between 1 and 1,000 characters." });
+    const turns = normalizeTurns(payload.messages);
+    if (!turns) {
+      return reply(400, { error: "Send a conversation of user and assistant messages." });
     }
 
     // Preview requests are allowed through the Supabase gateway without a user
@@ -130,7 +160,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         headers: { "Content-Type": "application/json", "x-goog-api-key": geminiApiKey },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemInstruction }] },
-          contents: [{ parts: [{ text: question }] }],
+          contents: turns.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] })),
           generationConfig: { maxOutputTokens: 320, temperature: 0.4 },
         }),
         signal: AbortSignal.timeout(25_000),
