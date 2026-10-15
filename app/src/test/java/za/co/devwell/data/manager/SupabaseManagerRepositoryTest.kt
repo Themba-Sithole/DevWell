@@ -27,6 +27,7 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.*
 import org.junit.Test
 import za.co.devwell.model.*
+import za.co.devwell.ui.manager.memberCountLabel
 import za.co.devwell.viewmodel.friendlyError
 
 class SupabaseManagerRepositoryTest {
@@ -181,13 +182,13 @@ class SupabaseManagerRepositoryTest {
 
     @Test fun flagOffLoadSelectsOnlyCurrentColumnsAndNeverCallsRpc() = runTest {
         var teamSelect: String? = null
-        var rpcCalls = 0
+        var settingsRpcCalls = 0
         val client = client(MockEngine { request ->
             when (val path = request.url.encodedPath) {
                 "/auth/v1/token" -> json(token)
                 "/rest/v1/team" -> { teamSelect = request.url.parameters["select"]; json(team) }
                 "/rest/v1/join_request" -> json("[]")
-                else -> { if (path.startsWith("/rest/v1/rpc/")) rpcCalls++; error("Unexpected request: $path") }
+                else -> { if (path == "/rest/v1/rpc/update_team_settings") settingsRpcCalls++; error("Unexpected request: $path") }
             }
         })
         try {
@@ -198,7 +199,7 @@ class SupabaseManagerRepositoryTest {
             val error = runCatching { repo.updateTeamSettings(loaded.copy(name = "Platform")) }.exceptionOrNull()
             assertTrue("Expected IllegalStateException but got $error", error is IllegalStateException)
             assertEquals("Team settings cannot be saved to the server yet.", error?.message)
-            assertEquals(0, rpcCalls)
+            assertEquals(0, settingsRpcCalls)
             assertEquals(loaded, repo.managedTeam.value)
         } finally { client.close() }
     }
@@ -295,6 +296,98 @@ class SupabaseManagerRepositoryTest {
         assertEquals("The team settings could not be confirmed. Refresh and try again.", error?.message)
     }
 
+    private val requesterNames = """[{"request_id":"r2","user_id":"u2","name":"Thandi Nkosi"}]"""
+    private val roster = """[{"user_id":"u1","name":"Sam Peters"},{"user_id":"u3","name":"Lee Adams"}]"""
+
+    @Test fun namesAreFilledInFromBothFunctions() = runTest {
+        val rpcCalls = mutableMapOf<String, Pair<HttpMethod, String>>()
+        val client = namesClient(pendingNames = { requesterNames }, roster = { roster }, rpcCalls = rpcCalls)
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            val requests = awaitValue(repo.joinRequests) { it.isNotEmpty() }
+            assertEquals(listOf("r2", "r1"), requests.map { it.id })
+            assertEquals(listOf("Thandi Nkosi", "Sam Peters"), requests.map { it.userName })
+            assertTrue(requests.all { it.userEmail.isEmpty() })
+            val loaded = repo.managedTeam.value!!
+            assertEquals(2, loaded.memberCount)
+            assertEquals(listOf("Lee Adams", "Sam Peters"), loaded.roster)
+            for (path in listOf("/rest/v1/rpc/pending_join_requesters", "/rest/v1/rpc/team_roster")) {
+                val (method, body) = rpcCalls[path] ?: error("$path was not called")
+                assertEquals(HttpMethod.Post, method)
+                val sent = Json.parseToJsonElement(body).jsonObject
+                assertEquals(setOf("p_team_id"), sent.keys)
+                assertEquals("\"t1\"", sent["p_team_id"].toString())
+            }
+        } finally { client.close() }
+    }
+
+    @Test fun failingFunctionKeepsRequestsAndPlaceholders() = runTest {
+        // pending_join_requesters fails: requests stay, the pending one keeps its placeholder.
+        namesClient(pendingNames = { null }, roster = { roster }).let { client ->
+            try {
+                val repo = SupabaseManagerRepository(client, backgroundScope)
+                signIn(client)
+                val requests = awaitValue(repo.joinRequests) { it.isNotEmpty() }
+                assertEquals(listOf("Engineer u2", "Sam Peters"), requests.map { it.userName })
+                assertEquals(2, repo.managedTeam.value!!.memberCount)
+            } finally { client.close() }
+        }
+        // team_roster fails: requests stay, the count stays unknown.
+        namesClient(pendingNames = { requesterNames }, roster = { null }).let { client ->
+            try {
+                val repo = SupabaseManagerRepository(client, backgroundScope)
+                signIn(client)
+                val requests = awaitValue(repo.joinRequests) { it.isNotEmpty() }
+                assertEquals(listOf("Thandi Nkosi", "Engineer u1"), requests.map { it.userName })
+                val loaded = repo.managedTeam.value!!
+                assertEquals(0, loaded.memberCount)
+                assertNull(loaded.roster)
+            } finally { client.close() }
+        }
+    }
+
+    @Test fun failingRosterOnReloadKeepsOldCount() = runTest {
+        var rosterUp = true
+        var rosterCalls = 0
+        val client = namesClient(pendingNames = { requesterNames }, roster = { rosterCalls++; if (rosterUp) roster else null })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            val before = awaitValue(repo.managedTeam) { it != null }!!
+            assertEquals(2, before.memberCount)
+            rosterUp = false
+            val callsBefore = rosterCalls
+            repo.reviewJoinRequest("r2", approve = true)
+            assertTrue("The reload never called team_roster", rosterCalls > callsBefore)
+            assertEquals(2, repo.managedTeam.value!!.memberCount)
+            assertEquals(before.roster, repo.managedTeam.value!!.roster)
+            assertEquals(2, repo.joinRequests.value.size)
+        } finally { client.close() }
+    }
+
+    @Test fun pendingRequesterMissingKeepsPlaceholder() = runTest {
+        val client = namesClient(pendingNames = { "[]" }, roster = { "[]" })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            val requests = awaitValue(repo.joinRequests) { it.isNotEmpty() }
+            assertEquals("Engineer u2", requests.first { it.id == "r2" }.userName)
+        } finally { client.close() }
+    }
+
+    @Test fun emptyRosterIsARealZero() = runTest {
+        val client = namesClient(pendingNames = { requesterNames }, roster = { "[]" })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            val loaded = awaitValue(repo.managedTeam) { it != null }!!
+            assertEquals(0, loaded.memberCount)
+            assertEquals(emptyList<String>(), loaded.roster)
+            assertEquals("No members yet", memberCountLabel(loaded.memberCount, known = loaded.roster != null))
+        } finally { client.close() }
+    }
+
     @Test fun signOutClearsTeamAndRequests() = runTest {
         val client = client(MockEngine { request ->
             json(when (request.url.encodedPath) {
@@ -361,6 +454,33 @@ class SupabaseManagerRepositoryTest {
             return error
         } finally { client.close() }
     }
+
+    /**
+     * Loads team t1 with [pending] requests. The two name functions answer with [pendingNames] and [roster];
+     * null means a 500. Each function call's method and body is recorded in [rpcCalls].
+     */
+    private fun namesClient(
+        pendingNames: () -> String?,
+        roster: () -> String?,
+        rpcCalls: MutableMap<String, Pair<HttpMethod, String>> = mutableMapOf(),
+    ) = client(MockEngine { request ->
+        when (val path = request.url.encodedPath) {
+            "/auth/v1/token" -> json(token)
+            "/rest/v1/team" -> json(team)
+            "/rest/v1/join_request" -> json(pending)
+            "/functions/v1/review-join-request" -> json("""{"request_id":"r2","status":"approved"}""")
+            "/rest/v1/rpc/pending_join_requesters", "/rest/v1/rpc/team_roster" -> {
+                rpcCalls[path] = request.method to bodyText(request)
+                val body = if (path == "/rest/v1/rpc/team_roster") roster() else pendingNames()
+                if (body != null) json(body) else respond(
+                    """{"code":"XX000","message":"Server error"}""",
+                    HttpStatusCode.InternalServerError,
+                    headersOf("Content-Type", "application/json"),
+                )
+            }
+            else -> error("Unexpected request: $path")
+        }
+    })
 
     private suspend fun signIn(client: io.github.jan.supabase.SupabaseClient) =
         client.auth.signInWith(Email) { email = "manager@example.com"; password = "password123" }
