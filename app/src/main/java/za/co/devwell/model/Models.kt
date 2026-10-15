@@ -99,6 +99,7 @@ data class ProjectTask(
     val priority: TaskPriority = TaskPriority.MEDIUM,
     val note: String = "",
     val status: TaskStatus = TaskStatus.OPEN,
+    val position: Int = 0,
 ) {
     val isDone: Boolean get() = status == TaskStatus.DONE
 }
