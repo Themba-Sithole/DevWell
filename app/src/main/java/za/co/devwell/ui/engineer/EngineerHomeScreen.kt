@@ -1,8 +1,10 @@
 package za.co.devwell.ui.engineer
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
@@ -18,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,13 +46,32 @@ fun EngineerHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.linearGradient(BrandGradient))
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
-                    Text(greetingByHour(hourNow()), style = MaterialTheme.typography.bodyMedium, color = InkMuted)
-                    Text("$firstName \uD83D\uDC4B", style = MaterialTheme.typography.headlineLarge, color = Ink)
+                    Text(
+                        greetingByHour(hourNow()),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.82f),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text("$firstName \uD83D\uDC4B", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "A quick check-in keeps you and your team in sync.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.85f),
+                    )
                 }
+                Spacer(Modifier.width(12.dp))
                 Box(Modifier.clickable(onClick = onProfile)) {
-                    Avatar(name.initials(), size = 46.dp)
+                    Avatar(name.initials(), size = 46.dp, background = Color.White, contentColor = DevGreen)
                 }
             }
         }
