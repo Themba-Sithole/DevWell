@@ -172,8 +172,8 @@ class SupabaseManagerRepositoryTest {
     }
 
     @Test fun teamSettingsAreNotSavedYet() = runTest {
-        assertFalse("Flip TEAM_SETTINGS_LIVE only after the migration is applied", TEAM_SETTINGS_LIVE)
-        val repo = SupabaseManagerRepository(client = null, scope = backgroundScope)
+        assertTrue("The team settings migration is applied to the shared database, so saving is on", TEAM_SETTINGS_LIVE)
+        val repo = SupabaseManagerRepository(client = null, scope = backgroundScope, settingsLive = false)
         val error = runCatching { repo.updateTeamSettings(Team("t1", "c1", "Mobile")) }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
         assertEquals("Team settings cannot be saved to the server yet.", error?.message)

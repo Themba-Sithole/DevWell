@@ -25,16 +25,17 @@ Calling RPC directly is allowed and cannot bypass those authorization checks.
 
 ## App integration
 
-Member 3's `team-aggregate` endpoint and app integration are present on the review
-branch only; neither has been deployed to the live project.
-
-Member 3's `team-aggregate` function source uses the signed-in user's token to verify
-active team membership, then uses the server-only service-role key to read check-ins
-for active engineers in that team. It returns only a response count below five and
-anonymous averages at five or more. The service-role key is never sent to Android.
-The function and app wiring must be reviewed and merged before anyone deploys it.
-The endpoint supports an inclusive local-date range; the app sends the same recent
-three-month range to the engineer preview and manager dashboard.
+Member 3's `team-aggregate` endpoint is deployed to the live project, and both the
+engineer privacy preview and manager dashboard use the shared `TeamInsightsRepository`.
+The function verifies the signed-in user's active team access before using the
+server-only service-role key to read check-ins for active engineers on that team. The
+service-role key is never sent to Android. Below five distinct participants, the
+response contains only the count. At five or more, it returns anonymous per-metric
+averages after averaging each participant's check-ins equally. A metric remains hidden
+unless at least five distinct participants have a valid numeric value for it. The
+endpoint accepts an inclusive local-date range; the app sends the same recent
+three-month range to the engineer preview and manager dashboard. Deploy updates only
+after reviewing the source against the live function and checking the target project.
 
 Member 1 already submits join requests and refreshes `public.user` after submission
 and when Refresh status is tapped. The directory is intentionally empty until real
@@ -43,6 +44,30 @@ company/team names are available. No invented manager/admin accounts were left b
 Member 5 must replace `MockManagerRepository` with live approval calls. Other members'
 check-ins, projects, history and notifications still use sample repositories; their
 backend features are outside this Member 1 onboarding implementation.
+
+## Member 6 admin dashboard (not deployed)
+
+The local `admin-dashboard` Edge Function lists account identity, role, status,
+team display name and aggregate platform counts. It never returns check-in answers,
+scores or notes. The database RPCs require the caller to be an active, onboarded admin;
+status changes are limited to suspending/reactivating another non-admin account and are
+audited in the unexposed `private.admin_account_status_audit` table. The caller's JWT
+is verified and forwarded to Postgres; no service-role key is required. The migration
+also makes active status a database requirement for project/task access, so an already
+signed-in suspended account is blocked without waiting for the Android UI to refresh.
+
+This migration and function have not been applied to the hosted Supabase project.
+First validate them against a disposable local/development database and review the
+target project's migration history. After approval, deploy the database migration
+through the normal migration workflow and deploy only this function with:
+
+```text
+supabase functions deploy admin-dashboard --project-ref whtsjwiqcesngltfghyb --use-api
+```
+
+Validate locally with `tests/admin_dashboard.sql` and the Deno test/check commands
+below. The SQL test is transactional and expects the migrations to be applied; run it
+with a trusted database role in a development database, never on production.
 
 ## AI assistant
 

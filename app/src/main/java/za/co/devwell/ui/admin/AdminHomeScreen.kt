@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.AccountStatus
 import za.co.devwell.model.DevWellUser
+import za.co.devwell.model.UserRole
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
 
@@ -22,6 +23,12 @@ import za.co.devwell.ui.theme.*
 fun AdminHomeScreen(
     stats: Map<String, Int>,
     users: List<DevWellUser>,
+    adminUserId: String,
+    isLoading: Boolean,
+    busyUserId: String?,
+    errorMessage: String?,
+    onRefresh: () -> Unit,
+    onDismissError: () -> Unit,
     onSetUserStatus: (String, Boolean) -> Unit,
 ) {
     LazyColumn(
@@ -31,6 +38,18 @@ fun AdminHomeScreen(
         item { PageTitle("Platform administration", "Manage accounts and platform access") }
         item {
             PrivacyNotice("The admin role manages access but does not expose individual wellbeing responses.")
+        }
+        if (errorMessage != null) {
+            item {
+                DevWellCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                    Text(errorMessage, color = MaterialTheme.colorScheme.onErrorContainer)
+                    TextButton(onClick = onDismissError) { Text("Dismiss") }
+                }
+            }
+        }
+        if (isLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        item {
+            TextButton(onClick = onRefresh, enabled = !isLoading) { Text("Refresh accounts") }
         }
         if (stats.isNotEmpty()) {
             items(stats.toList().chunked(2)) { row ->
@@ -59,6 +78,13 @@ fun AdminHomeScreen(
             }
         }
         item { SectionLabel("Users") }
+        if (users.isEmpty() && !isLoading) {
+            item {
+                DevWellCard {
+                    Text("No accounts to display.", color = InkMuted)
+                }
+            }
+        }
         items(users) { user ->
             DevWellCard(padding = 14.dp) {
                 Row(
@@ -87,25 +113,32 @@ fun AdminHomeScreen(
                             )
                         }
                     }
-                    val isActive = user.status == AccountStatus.ACTIVE
-                    OutlinedButton(
-                        onClick = { onSetUserStatus(user.id, !isActive) },
-                        modifier = Modifier.heightIn(min = 36.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isActive) RedBorder else TrackGreen,
-                        ),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (isActive) RedText else DevGreen,
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Text(
-                            if (isActive) "Suspend" else "Activate",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                    val canChangeStatus = user.id != adminUserId &&
+                        user.role != UserRole.ADMIN &&
+                        user.status in setOf(AccountStatus.ACTIVE, AccountStatus.SUSPENDED)
+                    if (canChangeStatus) {
+                        val isActive = user.status == AccountStatus.ACTIVE
+                        OutlinedButton(
+                            onClick = { onSetUserStatus(user.id, !isActive) },
+                            enabled = busyUserId == null,
+                            modifier = Modifier.heightIn(min = 36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isActive) RedBorder else TrackGreen,
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isActive) RedText else DevGreen,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                if (busyUserId == user.id) "Updating…"
+                                else if (isActive) "Suspend" else "Reactivate",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                 }
             }
@@ -116,13 +149,13 @@ fun AdminHomeScreen(
                     IconTile(Icons.Outlined.Password, size = 40.dp)
                     Column {
                         Text(
-                            "Temporary credentials",
+                            "Account provisioning",
                             style = MaterialTheme.typography.titleSmall,
                             color = Ink,
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "Generate email and temporary password for first-time access.",
+                            "New accounts and privileged roles are provisioned through trusted backend operations.",
                             style = MaterialTheme.typography.bodySmall,
                             color = InkMuted,
                         )

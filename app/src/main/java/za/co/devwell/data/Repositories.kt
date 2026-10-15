@@ -91,6 +91,11 @@ interface AiGuidanceRepository {
 interface AdminRepository {
     val stats: Flow<Map<String, Int>>
     val users: Flow<List<DevWellUser>>
+    val isLoading: Flow<Boolean>
+    val busyUserId: Flow<String?>
+    val errorMessage: Flow<String?>
+    suspend fun refresh()
+    fun clearError()
     suspend fun setUserStatus(userId: String, active: Boolean)
 }
 
@@ -485,9 +490,19 @@ class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuid
 
 class MockAdminRepository : AdminRepository {
     private val statsState = MutableStateFlow(
-        mapOf("Users" to 42, "Companies" to 4, "Teams" to 9, "Pending requests" to 6)
+        mapOf(
+            "Users" to 5,
+            "Active accounts" to 3,
+            "Suspended accounts" to 1,
+            "Companies" to 4,
+            "Teams" to 9,
+            "Pending requests" to 6,
+        )
     )
     override val stats: Flow<Map<String, Int>> = statsState
+    override val isLoading: Flow<Boolean> = MutableStateFlow(false)
+    override val busyUserId: Flow<String?> = MutableStateFlow(null)
+    override val errorMessage: Flow<String?> = MutableStateFlow(null)
 
     private val usersState = MutableStateFlow(
         listOf(
@@ -495,13 +510,18 @@ class MockAdminRepository : AdminRepository {
             DevWellUser("u2", "themb", "themb@devwell.io", UserRole.MANAGER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
             DevWellUser("u3", "taash", "taash@devwell.io", UserRole.ADMIN),
             DevWellUser("u4", "dan", "dan@devwell.io", UserRole.ENGINEER, companyId = "c1", status = AccountStatus.PENDING),
+            DevWellUser("u5", "lee", "lee@devwell.io", UserRole.ENGINEER, companyId = "c1", teamId = "t1", status = AccountStatus.SUSPENDED),
         )
     )
     override val users: Flow<List<DevWellUser>> = usersState
 
+    override suspend fun refresh() = Unit
+
+    override fun clearError() = Unit
+
     override suspend fun setUserStatus(userId: String, active: Boolean) {
         usersState.value = usersState.value.map {
-            if (it.id == userId) it.copy(status = if (active) AccountStatus.ACTIVE else AccountStatus.REJECTED)
+            if (it.id == userId) it.copy(status = if (active) AccountStatus.ACTIVE else AccountStatus.SUSPENDED)
             else it
         }
     }
@@ -513,6 +533,7 @@ object AppContainer {
     private lateinit var wellbeingRepo: WellbeingRepository
     private lateinit var managerRepo: ManagerRepository
     private lateinit var teamInsightsRepo: TeamInsightsRepository
+    private var adminRepository: AdminRepository = MockAdminRepository()
     private var projectRepository: ProjectRepository = MockProjectRepository()
     private var aiRepository: AiGuidanceRepository = MockAiGuidanceRepository()
 
@@ -534,6 +555,11 @@ object AppContainer {
             } else {
                 za.co.devwell.data.projects.SupabaseProjectRepository(client, scope)
             }
+            adminRepository = if (client == null) {
+                MockAdminRepository()
+            } else {
+                za.co.devwell.data.admin.SupabaseAdminRepository(client, identity.currentUser, scope)
+            }
         }
     }
 
@@ -545,5 +571,5 @@ object AppContainer {
     val manager: ManagerRepository get() = managerRepo
     val notifications: NotificationRepository = MockNotificationRepository()
     val ai: AiGuidanceRepository get() = aiRepository
-    val admin: AdminRepository = MockAdminRepository()
+    val admin: AdminRepository get() = adminRepository
 }

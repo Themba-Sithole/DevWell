@@ -124,6 +124,9 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
     val adminStats by viewModel.adminStats.collectAsStateWithLifecycle()
     val adminUsers by viewModel.adminUsers.collectAsStateWithLifecycle()
+    val adminLoading by viewModel.adminLoading.collectAsStateWithLifecycle()
+    val adminBusyUserId by viewModel.adminBusyUserId.collectAsStateWithLifecycle()
+    val adminErrorMessage by viewModel.adminErrorMessage.collectAsStateWithLifecycle()
     val companies by viewModel.companies.collectAsStateWithLifecycle()
     val teams by viewModel.teams.collectAsStateWithLifecycle()
 
@@ -373,6 +376,12 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 AdminHomeScreen(
                     stats = adminStats,
                     users = adminUsers,
+                    adminUserId = user.id,
+                    isLoading = adminLoading,
+                    busyUserId = adminBusyUserId,
+                    errorMessage = adminErrorMessage,
+                    onRefresh = { viewModel.refreshAdminDashboard() },
+                    onDismissError = viewModel::clearAdminError,
                     onSetUserStatus = viewModel::setUserStatus,
                 )
             }

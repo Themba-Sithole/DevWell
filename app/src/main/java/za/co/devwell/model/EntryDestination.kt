@@ -6,6 +6,7 @@ enum class EntryDestination { LOGIN, ONBOARDING, PENDING, ENGINEER, MANAGER, ADM
 fun entryDestination(user: DevWellUser?): EntryDestination = when {
     user == null -> EntryDestination.LOGIN
     user.status == AccountStatus.REJECTED -> EntryDestination.PENDING
+    user.status == AccountStatus.SUSPENDED -> EntryDestination.PENDING
     user.role == UserRole.ENGINEER && !user.onboardingDone -> EntryDestination.ONBOARDING
     user.status != AccountStatus.ACTIVE || !user.onboardingDone -> EntryDestination.PENDING
     user.role == UserRole.ENGINEER && (user.companyId.isNullOrBlank() || user.teamId.isNullOrBlank()) -> EntryDestination.ONBOARDING

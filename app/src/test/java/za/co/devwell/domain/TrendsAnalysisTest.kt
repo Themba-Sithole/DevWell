@@ -76,5 +76,11 @@ class TrendsAnalysisTest {
         assertEquals(current, TrendsAnalysis.onDate(history, today))
         assertEquals(current, TrendsAnalysis.todayCheckIn(history, today))
         assertNull(TrendsAnalysis.todayCheckIn(listOf(yesterday), today))
+    @Test fun chartEntriesKeepTheLatestTwelveCheckInsInAscendingOrder() {
+        val entries = (1..14).map { day -> checkIn("2026-09-${day.toString().padStart(2, '0')}") }
+
+        assertEquals(12, TrendsAnalysis.chartEntries(entries).size)
+        assertEquals("2026-09-03", TrendsAnalysis.chartEntries(entries).first().dateLabel)
+        assertEquals("2026-09-14", TrendsAnalysis.chartEntries(entries).last().dateLabel)
     }
 }

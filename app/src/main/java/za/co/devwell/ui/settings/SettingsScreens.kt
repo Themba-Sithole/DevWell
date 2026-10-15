@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.AiMessage
 import za.co.devwell.model.NotificationPreferences
+import za.co.devwell.model.PrivacyPolicy
 import za.co.devwell.model.UserRole
 import za.co.devwell.ui.auth.AuthFeedback
 import za.co.devwell.ui.components.*
@@ -98,6 +99,17 @@ fun ProfileScreen(
                 checked = prefs?.dailyEnabled ?: true,
                 onCheckedChange = onToggleDaily,
                 subtitle = "9:00 AM",
+            )
+            Spacer(Modifier.height(12.dp))
+            DevWellDivider()
+            Spacer(Modifier.height(12.dp))
+            SectionLabel("Privacy")
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Managers never see individual check-ins. Team insights require at least " +
+                    "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct participants.",
+                style = MaterialTheme.typography.bodySmall,
+                color = InkMuted,
             )
         }
         if (role == UserRole.ENGINEER) {

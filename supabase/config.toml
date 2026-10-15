@@ -390,6 +390,9 @@ verify_jwt = true
 [functions.review-join-request]
 verify_jwt = true
 
+[functions.admin-dashboard]
+verify_jwt = true
+
 [functions.team-aggregate]
 verify_jwt = true
 

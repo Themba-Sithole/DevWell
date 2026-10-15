@@ -25,7 +25,11 @@ const request = (body: unknown, authorization = "Bearer signed-in-user-token") =
     body: JSON.stringify(body),
   });
 
-function fakeFetch(checkInCount: number, callerRole = "engineer") {
+function fakeFetch(
+  checkInCount: number,
+  callerRole = "engineer",
+  checkInRows?: Array<{ user_id: string; responses: Record<string, unknown> }>,
+) {
   const calls: Array<{ url: URL; init?: RequestInit }> = [];
   const send: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -46,7 +50,8 @@ function fakeFetch(checkInCount: number, callerRole = "engineer") {
     }
     if (url.pathname.endsWith("/rest/v1/user")) return Response.json(memberIds.slice(0, checkInCount).map((id) => ({ id })));
     if (url.pathname.endsWith("/rest/v1/check_in")) {
-      return Response.json(memberIds.slice(0, checkInCount).map((_, index) => ({
+      return Response.json(checkInRows ?? memberIds.slice(0, checkInCount).map((userId, index) => ({
+        user_id: userId,
         responses: { wellbeing: index + 1, workload: 3, energy: 6 + index, focus: 7, afterHoursMinutes: 30 },
       })));
     }
@@ -78,6 +83,26 @@ Deno.test("returns only the count below the anonymity threshold", async () => {
   equal(new Headers(fake.calls[3].init?.headers).get("Authorization"), `Bearer ${config.serviceRoleKey}`);
 });
 
+Deno.test("repeat check-ins from four people still reveal only the distinct participant count", async () => {
+  const checkInRows = [
+    ...Array.from({ length: 6 }, () => ({
+      user_id: memberIds[0],
+      responses: { wellbeing: 5, workload: 5, energy: 10, focus: 10, afterHoursMinutes: 0 },
+    })),
+    ...memberIds.slice(1, 4).map((user_id) => ({
+      user_id,
+      responses: { wellbeing: 1, workload: 1, energy: 1, focus: 1, afterHoursMinutes: 60 },
+    })),
+  ];
+  const fake = fakeFetch(4, "engineer", checkInRows);
+  const result = await createTeamAggregateHandler(config, fake.send)(
+    request({ team_id: teamId, start_date: "2026-07-04", end_date: "2026-10-04" }),
+  );
+
+  equal(result.status, 200);
+  equal(await result.json(), { team_id: teamId, response_count: 4 });
+});
+
 Deno.test("returns anonymous averages at five and no raw check-in fields", async () => {
   const fake = fakeFetch(5);
   const result = await createTeamAggregateHandler(config, fake.send)(
@@ -98,6 +123,33 @@ Deno.test("returns anonymous averages at five and no raw check-in fields", async
     "average_after_hours_minutes", "average_energy", "average_focus", "average_wellbeing",
     "average_workload", "response_count", "team_id",
   ]);
+});
+
+Deno.test("weights each participant equally and ignores non-numeric scores", async () => {
+  const checkInRows = [
+    ...Array.from({ length: 20 }, () => ({
+      user_id: memberIds[0],
+      responses: { wellbeing: 5, workload: 5, energy: 10, focus: 10, afterHoursMinutes: null },
+    })),
+    ...memberIds.slice(1, 5).map((user_id) => ({
+      user_id,
+      responses: { wellbeing: 1, workload: 1, energy: 1, focus: 1, afterHoursMinutes: 30 },
+    })),
+  ];
+  const fake = fakeFetch(5, "engineer", checkInRows);
+  const result = await createTeamAggregateHandler(config, fake.send)(
+    request({ team_id: teamId, start_date: "2026-07-04", end_date: "2026-10-04" }),
+  );
+
+  equal(result.status, 200);
+  const body = await result.json();
+  equal(body.response_count, 5);
+  equal(body.average_wellbeing, 1.8);
+  equal(body.average_workload, 1.8);
+  equal(body.average_energy, 2.8);
+  equal(body.average_focus, 2.8);
+  // Only four distinct people have a numeric after-hours score, so that metric stays hidden.
+  equal(body.average_after_hours_minutes, null);
 });
 
 Deno.test("rejects a team outside the authenticated engineer's membership", async () => {

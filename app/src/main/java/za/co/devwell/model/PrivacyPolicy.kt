@@ -5,7 +5,7 @@ package za.co.devwell.model
  * - Manager Team Insights (FR8, Story 3)
  * - Engineer "What my manager sees" (FR9, Story 2)
  *
- * Enforce the same threshold in UI AND eventually in a Supabase Edge Function.
+ * Enforce the same threshold in UI and in the Supabase Edge Function.
  * Hiding a Compose button is not a privacy control.
  */
 object PrivacyPolicy {
