@@ -6,9 +6,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
@@ -27,7 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import za.co.devwell.ui.components.AnimatedGreenBackground
 import za.co.devwell.ui.theme.AccentSurface
+import za.co.devwell.ui.theme.BorderGreen
+import za.co.devwell.ui.theme.BrandGradient
 import za.co.devwell.ui.theme.CardWhite
 import za.co.devwell.ui.theme.DevGreen
 import za.co.devwell.ui.theme.InkMuted
@@ -163,15 +169,22 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             Text(if (preview) "Student preview - sample data" else "Student prototype - sample dashboard data",
                 modifier = Modifier.statusBarsPadding().padding(8.dp), style = MaterialTheme.typography.labelSmall)
         },
         bottomBar = {
             if (showBottomBar && tabs.isNotEmpty()) {
+                Surface(
+                    color = CardWhite,
+                    shadowElevation = 18.dp,
+                    border = BorderStroke(1.dp, BorderGreen),
+                ) {
                 NavigationBar(
-                    containerColor = CardWhite,
+                    containerColor = Color.Transparent,
                     contentColor = DevGreen,
+                    tonalElevation = 0.dp,
                 ) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
@@ -186,8 +199,9 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                             icon = {
                                 if (tab.fab) {
                                     Box(
-                                        Modifier.size(40.dp)
-                                            .background(DevGreen, CircleShape),
+                                        Modifier.size(44.dp)
+                                            .shadow(8.dp, CircleShape)
+                                            .background(Brush.linearGradient(BrandGradient), CircleShape),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Icon(
@@ -210,9 +224,12 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         )
                     }
                 }
+                }
             }
         }
     ) { padding ->
+        Box(Modifier.fillMaxSize()) {
+        AnimatedGreenBackground(Modifier.matchParentSize())
         NavHost(
             navController = navController,
             startDestination = when (user.role) {
@@ -427,6 +444,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 )
             }
 
+        }
         }
     }
 }
