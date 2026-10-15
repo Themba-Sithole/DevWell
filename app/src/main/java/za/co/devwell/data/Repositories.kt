@@ -16,8 +16,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import za.co.devwell.model.*
 import java.time.Instant
 import java.time.ZoneId
@@ -78,7 +80,12 @@ interface NotificationRepository {
 }
 
 interface AiGuidanceRepository {
-    suspend fun ask(question: String, preview: Boolean = false): Result<String>
+    /**
+     * Sends the running conversation to the assistant. [messages] is the full
+     * in-session transcript, oldest first; the last entry must be the user's
+     * newest question. Recent turns are forwarded so replies stay in context.
+     */
+    suspend fun ask(messages: List<AiMessage>, preview: Boolean = false): Result<String>
 }
 
 interface AdminRepository {
@@ -160,17 +167,25 @@ class MockOnboardingRepository : OnboardingRepository {
 }
 
 class MockWellbeingRepository : WellbeingRepository {
+    private val today: String get() = TrendsAnalysis.today().toString()
     private val items = MutableStateFlow(
         listOf(
-            CheckIn("c1", "u1", "Mon", CheckInDraft(4, 3, 7, 8, 15)),
-            CheckIn("c2", "u1", "Tue", CheckInDraft(3, 4, 5, 6, 50)),
-            CheckIn("c3", "u1", "Wed", CheckInDraft(4, 3, 8, 7, 0)),
+            CheckIn("c1", "u1", TrendsAnalysis.today().minusDays(2).toString(), CheckInDraft(4, 3, 7, 8, 15)),
+            CheckIn("c2", "u1", TrendsAnalysis.today().minusDays(1).toString(), CheckInDraft(3, 4, 5, 6, 50)),
+            CheckIn("c3", "u1", TrendsAnalysis.today().toString(), CheckInDraft(4, 3, 8, 7, 0)),
         )
     )
     override val checkIns: Flow<List<CheckIn>> = items
 
+    /** One check-in per day: editing today replaces the existing entry. */
     override suspend fun saveCheckIn(draft: CheckInDraft) {
-        items.value = items.value + CheckIn("c${items.value.size + 1}", "u1", "Today", draft)
+        val date = today
+        val existing = items.value.firstOrNull { it.dateLabel == date }
+        items.value = if (existing == null) {
+            items.value + CheckIn("c${items.value.size + 1}", "u1", date, draft)
+        } else {
+            items.value.map { if (it.id == existing.id) it.copy(values = draft) else it }
+        }
     }
 }
 
@@ -203,6 +218,9 @@ private data class NewCheckInRow(
     val responses: CheckInDraft,
 )
 
+@Serializable
+private data class CheckInPatch(val responses: CheckInDraft)
+
 class SupabaseWellbeingRepository(
     private val client: SupabaseClient?,
     currentUser: Flow<DevWellUser?>,
@@ -230,14 +248,29 @@ class SupabaseWellbeingRepository(
         val rows = connection().from("check_in")
             .select { filter { eq("user_id", userId) } }
             .decodeList<CheckInRow>()
-        items.value = rows.sortedByDescending { it.createdAt }.map { it.toCheckIn() }
+        // Enforce one check-in per day: keep only the most recent row for each date.
+        items.value = rows.sortedByDescending { it.createdAt }
+            .map { it.toCheckIn() }
+            .distinctBy { it.dateLabel }
     }
 
+    /**
+     * One check-in per day (FR4). If today's check-in already exists it is
+     * updated in place so the engineer can correct a mistake; otherwise a new
+     * row is inserted.
+     */
     override suspend fun saveCheckIn(draft: CheckInDraft) {
         val supabase = connection()
         val userId = supabase.auth.currentUserOrNull()?.id
             ?: error("Please sign in again.")
-        supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft))
+        val existing = TrendsAnalysis.todayCheckIn(items.value)
+        if (existing == null) {
+            supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft))
+        } else {
+            supabase.from("check_in").update(CheckInPatch(responses = draft)) {
+                filter { eq("id", existing.id) }
+            }
+        }
         refresh(userId)
     }
 }
@@ -395,8 +428,11 @@ class MockNotificationRepository : NotificationRepository {
 }
 
 class MockAiGuidanceRepository : AiGuidanceRepository {
-    override suspend fun ask(question: String, preview: Boolean): Result<String> {
-        if (question.isBlank()) return Result.failure(IllegalArgumentException("Ask a question"))
+    override suspend fun ask(messages: List<AiMessage>, preview: Boolean): Result<String> {
+        val last = messages.lastOrNull()
+        if (last == null || !last.fromUser || last.text.isBlank()) {
+            return Result.failure(IllegalArgumentException("Ask a question"))
+        }
         return Result.success(
             "Guidance only — not professional advice.\n\n" +
                     "Try protecting two 25-minute focus blocks and ending work at your planned time. " +
@@ -409,16 +445,28 @@ class MockAiGuidanceRepository : AiGuidanceRepository {
 private data class AiAssistantResponse(val answer: String)
 
 class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuidanceRepository {
-    override suspend fun ask(question: String, preview: Boolean): Result<String> = runCatching {
-        val cleanedQuestion = question.trim()
-        require(cleanedQuestion.isNotEmpty()) { "Ask a question first." }
-        require(cleanedQuestion.length <= 1000) { "Keep your question under 1,000 characters." }
+    override suspend fun ask(messages: List<AiMessage>, preview: Boolean): Result<String> = runCatching {
+        val last = messages.lastOrNull()
+        require(last != null && last.fromUser) { "Ask a question first." }
+        val question = last.text.trim()
+        require(question.isNotEmpty()) { "Ask a question first." }
+        require(question.length <= MAX_QUESTION_CHARS) { "Keep your question under 1,000 characters." }
+        // Only forward the tail of the conversation so the request stays small.
+        val recent = messages.takeLast(MAX_CONTEXT_MESSAGES)
+            .map { it.copy(text = it.text.take(MAX_MESSAGE_CHARS)) }
         val supabase = client ?: error("Supabase is not configured for this app.")
         val response = try {
             supabase.functions.invoke("ai-assistant", body = buildJsonObject {
-                put("question", cleanedQuestion)
                 put("consent", true)
                 put("preview", preview)
+                putJsonArray("messages") {
+                    recent.forEach { message ->
+                        addJsonObject {
+                            put("role", if (message.fromUser) "user" else "model")
+                            put("text", message.text)
+                        }
+                    }
+                }
             })
         } catch (_: Exception) {
             throw IllegalStateException("The assistant is temporarily unavailable. Please retry.")
@@ -431,6 +479,12 @@ class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuid
         responseBody.answer.trim().also {
             require(it.isNotEmpty()) { "The assistant returned an empty response. Please retry." }
         }
+    }
+
+    companion object {
+        private const val MAX_QUESTION_CHARS = 1000
+        private const val MAX_MESSAGE_CHARS = 4000
+        private const val MAX_CONTEXT_MESSAGES = 20
     }
 }
 

@@ -20,6 +20,16 @@ sealed class SaveState {
 }
 
 /**
+ * In-session AI conversation. Not persisted yet: it lives only for as long as
+ * the process/session holds this ViewModel, and is cleared by "New chat".
+ */
+data class AiChatState(
+    val messages: List<AiMessage> = emptyList(),
+    val sending: Boolean = false,
+    val error: String? = null,
+)
+
+/**
  * Shared shell ViewModel for the skeleton.
  * As features grow, each member can introduce a feature-specific ViewModel
  * (e.g. CheckInViewModel, ProjectsViewModel) without changing AppContainer.
@@ -131,8 +141,51 @@ class DevWellViewModel : ViewModel() {
         AppContainer.notifications.updatePreferences(prefs)
     }
 
-    fun askAi(question: String, preview: Boolean = false, onResult: (Result<String>) -> Unit) = viewModelScope.launch {
-        onResult(AppContainer.ai.ask(question, preview))
+    private val _aiChat = MutableStateFlow(AiChatState())
+    /** Chat transcript for AiAssistantScreen. In-memory for the current session only. */
+    val aiChat: StateFlow<AiChatState> = _aiChat.asStateFlow()
+
+    /** Appends the user's question, asks the assistant with the full context, then appends the reply. */
+    fun sendAiMessage(text: String, preview: Boolean = false) {
+        val question = text.trim()
+        if (question.isEmpty() || _aiChat.value.sending) return
+        val history = _aiChat.value.messages +
+            AiMessage(id = java.util.UUID.randomUUID().toString(), fromUser = true, text = question)
+        _aiChat.value = _aiChat.value.copy(messages = history, sending = true, error = null)
+        askAiInternal(history, preview)
+    }
+
+    /** Re-sends the current transcript after a failure (the last turn is the user's question). */
+    fun retryAi(preview: Boolean = false) {
+        val state = _aiChat.value
+        if (state.sending || state.messages.lastOrNull()?.fromUser != true) return
+        _aiChat.value = state.copy(sending = true, error = null)
+        askAiInternal(state.messages, preview)
+    }
+
+    private fun askAiInternal(history: List<AiMessage>, preview: Boolean) = viewModelScope.launch {
+        val result = AppContainer.ai.ask(history, preview)
+        _aiChat.value = result.fold(
+            onSuccess = { answer ->
+                _aiChat.value.copy(
+                    messages = history +
+                        AiMessage(id = java.util.UUID.randomUUID().toString(), fromUser = false, text = answer),
+                    sending = false,
+                    error = null,
+                )
+            },
+            onFailure = { failure ->
+                _aiChat.value.copy(
+                    sending = false,
+                    error = failure.message ?: "The assistant is unavailable. Please try again.",
+                )
+            },
+        )
+    }
+
+    /** Starts a fresh conversation. Previous messages are discarded (not persisted). */
+    fun clearAiChat() {
+        _aiChat.value = AiChatState()
     }
 
     fun updateTeamSettings(team: Team) = viewModelScope.launch {
