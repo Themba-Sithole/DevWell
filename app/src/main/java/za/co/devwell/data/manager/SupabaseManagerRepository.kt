@@ -27,7 +27,10 @@ import za.co.devwell.model.*
 /** True because 20261003120000_member5_team_settings.sql is applied to the shared database. Set to false to stop saving settings. */
 internal const val TEAM_SETTINGS_LIVE = true
 
-/** Join-request review and team settings for managers. Reads only team and join_request rows, never wellbeing data. */
+/**
+ * Join-request review and team settings for managers. Reads team and join_request rows plus the
+ * names-only pending_join_requesters and team_roster functions, never wellbeing data or emails.
+ */
 class SupabaseManagerRepository(
     private val client: SupabaseClient?,
     scope: CoroutineScope,
@@ -84,10 +87,32 @@ class SupabaseManagerRepository(
                 .select(Columns.list("id", "user_id", "company_id", "team_id", "status", "created_at")) {
                     filter { eq("team_id", team.id) }
                     order("created_at", Order.DESCENDING)
-                }.decodeList<JoinRequestRow>().map { it.toJoinRequest() }
+                }.decodeList<JoinRequestRow>()
         }
-        managedTeam.value = team
-        joinRequests.value = requests
+        // Names are optional extras: if either function fails, keep placeholders and the previous count.
+        val roster = team?.let { optional { supabase.postgrest.rpc("team_roster", teamArg(it.id)).decodeList<RosterMemberRow>() } }
+        val pending = team?.let { optional { supabase.postgrest.rpc("pending_join_requesters", teamArg(it.id)).decodeList<PendingRequesterRow>() } }
+        // Pending names cover pending requests; roster names cover approved requesters who are now members.
+        val names = roster.orEmpty().associate { it.userId to it.name } + pending.orEmpty().associate { it.userId to it.name }
+        val previous = managedTeam.value?.takeIf { it.id == team?.id }
+        managedTeam.value = team?.let {
+            if (roster == null) it.copy(memberCount = previous?.memberCount ?: 0, roster = previous?.roster)
+            else it.copy(
+                memberCount = roster.size,
+                roster = roster.map { m -> m.name?.takeIf(String::isNotBlank) ?: placeholderName(m.userId) }.sorted(),
+            )
+        }
+        joinRequests.value = requests.map { it.toJoinRequest(names[it.userId]) }
+    }
+
+    private fun teamArg(teamId: String) = buildJsonObject { put("p_team_id", teamId) }
+
+    private suspend fun <T> optional(block: suspend () -> T): T? = try {
+        block()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
     }
 
     override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) = lock.withLock {
@@ -138,8 +163,12 @@ class SupabaseManagerRepository(
             throw readableSettingsError(error) ?: error
         }
         check(saved.id == team.id) { "The team settings could not be confirmed. Refresh and try again." }
-        // The RPC returns no member count, so keep the one already shown.
-        managedTeam.value = saved.toTeam().copy(memberCount = managedTeam.value?.memberCount ?: team.memberCount)
+        // The RPC returns no roster, so keep the one already shown.
+        val current = managedTeam.value
+        managedTeam.value = saved.toTeam().copy(
+            memberCount = current?.memberCount ?: team.memberCount,
+            roster = current?.roster ?: team.roster,
+        )
     }
 
     // SDK 3.0.3 puts PostgREST's message in RestException.error. The RPC's PT400/PT403/PT409 messages are written for users.
