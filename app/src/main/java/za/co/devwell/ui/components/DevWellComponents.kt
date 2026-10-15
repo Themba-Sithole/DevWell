@@ -1,6 +1,13 @@
 package za.co.devwell.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,7 +27,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +45,9 @@ import za.co.devwell.ui.theme.*
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun PageTitle(title: String, subtitle: String? = null) {
@@ -85,14 +99,34 @@ fun DevWellCard(
     borderColor: Color = BorderGreen,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val usesSheen = containerColor == CardWhite
     Card(
         modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        colors = CardDefaults.cardColors(
+            containerColor = if (usesSheen) Color.Transparent else containerColor,
+        ),
         border = BorderStroke(1.dp, borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 3.dp,
+            pressedElevation = 3.dp,
+            focusedElevation = 3.dp,
+            hoveredElevation = 5.dp,
+            draggedElevation = 6.dp,
+        ),
     ) {
-        Column(Modifier.padding(padding), content = content)
+        Column(
+            Modifier
+                .then(
+                    if (usesSheen) {
+                        Modifier.background(Brush.verticalGradient(listOf(CardSheenTop, CardSheenBottom)))
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(padding),
+            content = content,
+        )
     }
 }
 
@@ -242,9 +276,22 @@ fun DevWellButton(
     val shape = RoundedCornerShape(12.dp)
     when (variant) {
         ButtonVariant.Primary -> Button(
-            onClick, modifier.heightIn(min = height), enabled = enabled, shape = shape,
+            onClick,
+            modifier
+                .heightIn(min = height)
+                .then(
+                    if (enabled) {
+                        Modifier
+                            .shadow(6.dp, shape, clip = false)
+                            .background(Brush.verticalGradient(BrandGradient), shape)
+                    } else {
+                        Modifier
+                    },
+                ),
+            enabled = enabled,
+            shape = shape,
             colors = ButtonDefaults.buttonColors(
-                containerColor = DevGreen,
+                containerColor = Color.Transparent,
                 contentColor = Color.White,
                 disabledContainerColor = PaleGreen,
                 disabledContentColor = Color.White,
@@ -564,6 +611,93 @@ fun DevWellDateField(
             )
         }
     }
+}
+
+/**
+ * Ambient app background: a light green base with three soft green "orbs" that
+ * drift on independent, slow loops. Gives the surface gentle life (LifeStack
+ * style) without pulling attention away from content. Uses soft radial
+ * gradients so it stays smooth on older devices (no blur needed).
+ */
+@Composable
+fun AnimatedGreenBackground(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "ambient")
+    val phaseA by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(14000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "phaseA",
+    )
+    val phaseB by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(19000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "phaseB",
+    )
+    val phaseC by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(24000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "phaseC",
+    )
+
+    Canvas(modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color(0xFFF4F9F1), Color(0xFFE4EFE0), Color(0xFFDCEADC)),
+            ),
+        )
+
+        ambientOrb(w, h, DevGreen, alpha = 0.34f, radiusFraction = 0.62f,
+            baseX = 0.24f, baseY = 0.20f, ampX = 0.22f, ampY = 0.16f, phase = phaseA)
+        ambientOrb(w, h, AccentGreen, alpha = 0.32f, radiusFraction = 0.56f,
+            baseX = 0.84f, baseY = 0.74f, ampX = 0.18f, ampY = 0.18f, phase = phaseB)
+        ambientOrb(w, h, LightGreen, alpha = 0.42f, radiusFraction = 0.50f,
+            baseX = 0.68f, baseY = 0.34f, ampX = 0.24f, ampY = 0.22f, phase = phaseC)
+        ambientOrb(w, h, AccentGreen, alpha = 0.26f, radiusFraction = 0.46f,
+            baseX = 0.20f, baseY = 0.84f, ampX = 0.18f, ampY = 0.16f, phase = phaseA + 0.5f)
+    }
+}
+
+private fun DrawScope.ambientOrb(
+    width: Float,
+    height: Float,
+    color: Color,
+    alpha: Float,
+    radiusFraction: Float,
+    baseX: Float,
+    baseY: Float,
+    ampX: Float,
+    ampY: Float,
+    phase: Float,
+) {
+    val angle = (phase % 1f) * 2f * PI.toFloat()
+    val center = Offset(
+        width * (baseX + ampX * cos(angle)),
+        height * (baseY + ampY * sin(angle)),
+    )
+    val radius = width * radiusFraction
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(color.copy(alpha = alpha), color.copy(alpha = 0f)),
+            center = center,
+            radius = radius,
+        ),
+        radius = radius,
+        center = center,
+    )
 }
 
 private fun LocalDate.toUtcMillis(): Long =
