@@ -1,5 +1,10 @@
 package za.co.devwell.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +22,7 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AddComment
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Notifications
@@ -30,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import za.co.devwell.model.AiMessage
 import za.co.devwell.model.NotificationPreferences
 import za.co.devwell.model.PrivacyPolicy
@@ -293,6 +300,7 @@ fun AiAssistantScreen(
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var consent by rememberSaveable { mutableStateOf(false) }
+    var consentConfirmed by remember { mutableStateOf(false) }
     val available = liveAssistantAvailable || previewAssistantAvailable
     val canSend = available && consent && input.isNotBlank() && !sending
     val listState = rememberLazyListState()
@@ -300,6 +308,16 @@ fun AiAssistantScreen(
     LaunchedEffect(messages.size, sending) {
         val count = messages.size + if (sending) 1 else 0
         if (count > 0) listState.animateScrollToItem(count - 1)
+    }
+
+    LaunchedEffect(consent) {
+        if (consent) {
+            consentConfirmed = true
+            delay(2600)
+            consentConfirmed = false
+        } else {
+            consentConfirmed = false
+        }
     }
 
     Column(
@@ -310,7 +328,7 @@ fun AiAssistantScreen(
             .navigationBarsPadding(),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f)) {
                 PageTitle("DevWell assistant", "Guidance only — not professional advice")
             }
             if (messages.isNotEmpty()) {
@@ -358,7 +376,11 @@ fun AiAssistantScreen(
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (available && !consent) {
+        AnimatedVisibility(
+            visible = available && !consent,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = consent,
@@ -371,10 +393,20 @@ fun AiAssistantScreen(
                 )
                 Text(
                     "I agree to send this conversation to Google Gemini, which may use it to improve its products.",
+                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                 )
             }
+        }
+        AnimatedVisibility(
+            visible = available && consent && consentConfirmed,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            ConsentConfirmedBanner()
+        }
+        if (available) {
             Spacer(Modifier.height(8.dp))
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -415,6 +447,25 @@ private fun GeminiConsentBanner() {
                 "improve its products. Avoid names or sensitive details.",
             style = MaterialTheme.typography.bodySmall,
             color = AmberText,
+        )
+    }
+}
+
+@Composable
+private fun ConsentConfirmedBanner() {
+    Row(
+        Modifier.fillMaxWidth()
+            .background(AccentSurface, RoundedCornerShape(12.dp))
+            .border(1.dp, TrackGreen, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp), tint = DevGreen)
+        Text(
+            "Consent recorded for this session — you can now send messages.",
+            style = MaterialTheme.typography.bodySmall,
+            color = DevGreen,
         )
     }
 }
