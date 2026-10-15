@@ -30,6 +30,24 @@ val RedText = Color(0xFFDC2626)
 
 val LoginGradient = listOf(Color(0xFF1A3320), DevGreen, AccentGreen)
 
+// Signature brand gradient used for hero surfaces, primary actions and the FAB.
+val BrandGradient = listOf(Color(0xFF2C5530), Color(0xFF3E6E44), Color(0xFF4A7C59))
+
+// Soft ambient background so screens have gentle depth instead of a flat fill.
+val AppBackgroundGradient = listOf(Color(0xFFF7FAF5), Color(0xFFEDF3E9), Color(0xFFE7EFE6))
+
+// Very light sheen applied to the top of white cards for a subtle glassy depth.
+val CardSheenTop = Color(0xFFFFFFFF)
+val CardSheenBottom = Color(0xFFF5FAF4)
+
+// Secondary accents to add life to tiles, charts and categories.
+val TealAccent = Color(0xFF2F7D72)
+val TealSurface = Color(0xFFE6F3F0)
+val SandAccent = Color(0xFFB07A3C)
+val SandSurface = Color(0xFFFBF3E6)
+val CoralAccent = Color(0xFFC9622F)
+val CoralSurface = Color(0xFFFBEDE6)
+
 val Forest = DevGreen
 val Sage = LightGreen
 val WarmBackground = PageBackground
