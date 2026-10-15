@@ -99,6 +99,48 @@ class SmartTipsEngineTest {
         assertTrue(tips.any { it.id == "deadline" && it.message.contains("New year") })
     }
 
+    @Test
+    fun `returns no tips when there are no projects`() {
+        assertTrue(SmartTipsEngine.generate(emptyList(), today = LocalDate.of(2026, 9, 4)).isEmpty())
+    }
+
+    @Test
+    fun `never exceeds three tips with many projects`() {
+        val projects = (1..5).map { index ->
+            project(
+                id = "p$index",
+                progress = 10,
+                tasks = listOf(
+                    task("Overdue $index", "1 Jan", priority = TaskPriority.HIGH),
+                    task("Soon $index", "5 Sep", priority = TaskPriority.HIGH),
+                ),
+            )
+        }
+
+        val tips = SmartTipsEngine.generate(projects, today = LocalDate.of(2026, 9, 4))
+        assertEquals(3, tips.size)
+    }
+
+    @Test
+    fun `tips refresh when a task is completed`() {
+        val overdue = project(tasks = listOf(task("Overdue", "1 Jan", priority = TaskPriority.HIGH)))
+        val before = SmartTipsEngine.generate(listOf(overdue), today = LocalDate.of(2026, 9, 4))
+        assertTrue(before.any { it.id == "overdue" })
+
+        val completed = overdue.copy(tasks = overdue.tasks.map { it.copy(status = TaskStatus.DONE) })
+        val after = SmartTipsEngine.generate(listOf(completed), today = LocalDate.of(2026, 9, 4))
+        assertFalse(after.any { it.id == "overdue" || it.id == "priority" })
+    }
+
+    @Test
+    fun `topNudge exposes the most urgent tip for notifications`() {
+        val projects = listOf(project(tasks = listOf(task("Overdue", "1 Jan", priority = TaskPriority.HIGH))))
+        val today = LocalDate.of(2026, 9, 4)
+
+        assertEquals(SmartTipsEngine.generate(projects, today).first().message, SmartTipsEngine.topNudge(projects, today))
+        assertEquals(null, SmartTipsEngine.topNudge(emptyList(), today))
+    }
+
     private fun project(
         id: String = "p1",
         progress: Int = 100,

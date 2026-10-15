@@ -107,6 +107,24 @@ class ProjectRepositoryTest {
     }
 
     @Test
+    fun `project with no tasks reports zero progress`() = runBlocking {
+        repository.deleteTask("p2", "t4")
+        val p2 = repository.projects.first().first { it.id == "p2" }
+        assertTrue(p2.tasks.isEmpty())
+        assertEquals(0, p2.progress)
+    }
+
+    @Test
+    fun `tasks keep a stable position order`() = runBlocking {
+        repository.addTask("p2", ProjectTask("", "Appended", "1 Oct", TaskPriority.LOW))
+        val p2 = repository.projects.first().first { it.id == "p2" }
+        assertEquals(2, p2.tasks.size)
+        assertEquals("t4", p2.tasks.first().id)
+        assertEquals("Appended", p2.tasks.last().title)
+        assertEquals(p2.tasks.map { it.position }.sorted(), p2.tasks.map { it.position })
+    }
+
+    @Test
     fun `empty project list is supported`() = runBlocking {
         repository.deleteProject("p1")
         repository.deleteProject("p2")

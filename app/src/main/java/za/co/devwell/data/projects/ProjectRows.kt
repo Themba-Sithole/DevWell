@@ -64,6 +64,7 @@ data class ProjectTaskRow(
         priority = priority,
         note = note,
         status = status,
+        position = position,
     )
 }
 
@@ -89,7 +90,7 @@ data class ProjectTaskPatchRow(
 
 fun storageDeadline(label: String): String = ProjectDeadlineParser.toStorage(label)
 
-fun isValidDeadline(label: String): Boolean = runCatching { ProjectDeadlineParser.parse(label) }.isSuccess
+fun isValidDeadline(label: String): Boolean = ProjectDeadlineParser.isValid(label)
 
 fun formatDeadline(iso: String): String = try {
     ProjectDeadlineParser.toDisplay(iso)

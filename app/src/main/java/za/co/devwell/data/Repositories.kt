@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
@@ -305,9 +306,9 @@ class MockProjectRepository : ProjectRepository {
                 deadline = "18 Sep",
                 progress = 33,
                 tasks = listOf(
-                    ProjectTask("t1", "Complete navigation skeleton", "5 Sep", TaskPriority.HIGH, status = TaskStatus.DONE),
-                    ProjectTask("t2", "Connect Supabase authentication", "10 Sep", TaskPriority.HIGH),
-                    ProjectTask("t3", "Implement check-in persistence", "13 Sep", TaskPriority.MEDIUM),
+                    ProjectTask("t1", "Complete navigation skeleton", "5 Sep", TaskPriority.HIGH, status = TaskStatus.DONE, position = 0),
+                    ProjectTask("t2", "Connect Supabase authentication", "10 Sep", TaskPriority.HIGH, position = 1),
+                    ProjectTask("t3", "Implement check-in persistence", "13 Sep", TaskPriority.MEDIUM, position = 2),
                 ),
             ),
             DevProject(
@@ -316,12 +317,12 @@ class MockProjectRepository : ProjectRepository {
                 deadline = "25 Sep",
                 progress = 0,
                 tasks = listOf(
-                    ProjectTask("t4", "Review references", "12 Sep", TaskPriority.MEDIUM),
+                    ProjectTask("t4", "Review references", "12 Sep", TaskPriority.MEDIUM, position = 0),
                 ),
             ),
         )
     )
-    override val projects: Flow<List<DevProject>> = items
+    override val projects: Flow<List<DevProject>> = items.map { projects -> projects.sortedBy { it.name } }
 
     override suspend fun createProject(project: DevProject) {
         val saved = if (project.id.isBlank()) {
@@ -346,7 +347,10 @@ class MockProjectRepository : ProjectRepository {
             if (project.id != projectId) project
             else {
                 val saved = if (task.id.isBlank()) {
-                    task.copy(id = nextId("t", items.value.flatMap { it.tasks }.map { it.id }))
+                    task.copy(
+                        id = nextId("t", items.value.flatMap { it.tasks }.map { it.id }),
+                        position = (project.tasks.maxOfOrNull { it.position } ?: -1) + 1,
+                    )
                 } else task
                 recalculateProgress(project.copy(tasks = project.tasks + saved))
             }
@@ -383,9 +387,10 @@ class MockProjectRepository : ProjectRepository {
     }
 
     private fun recalculateProgress(project: DevProject): DevProject {
-        val done = project.tasks.count { it.isDone }
-        val progress = if (project.tasks.isEmpty()) 0 else (done * 100) / project.tasks.size
-        return project.copy(progress = progress)
+        val tasks = project.tasks.sortedBy { it.position }
+        val done = tasks.count { it.isDone }
+        val progress = if (tasks.isEmpty()) 0 else (done * 100) / tasks.size
+        return project.copy(progress = progress, tasks = tasks)
     }
 
     private fun nextId(prefix: String, existing: List<String>): String {
