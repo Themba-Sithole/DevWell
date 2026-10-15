@@ -52,6 +52,14 @@ object SmartTipsEngine {
         return tips.take(3)
     }
 
+    /**
+     * Convenience for Member 6's tip-nudge notifications: the single most
+     * actionable tip message, or null when there is nothing to nudge about.
+     * Tips come from [generate], so they are already ordered most-urgent first.
+     */
+    fun topNudge(projects: List<DevProject>, today: LocalDate = LocalDate.now()): String? =
+        generate(projects, today).firstOrNull()?.message
+
     private fun daysUntil(deadlineLabel: String, today: LocalDate): Long {
         return try {
             val parsed = ProjectDeadlineParser.parse(deadlineLabel, today)

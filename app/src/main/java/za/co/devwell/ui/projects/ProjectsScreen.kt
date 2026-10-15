@@ -94,7 +94,9 @@ fun ProjectsScreen(
     val visibleProjects = remember(projects, filter) {
         projects
             .map { project ->
-                project to project.tasks.filter { filter == "All" || (filter == "Done") == it.isDone }
+                project to project.tasks
+                    .filter { filter == "All" || (filter == "Done") == it.isDone }
+                    .sortedBy { it.position }
             }
             .filter { filter == "All" || it.second.isNotEmpty() }
     }
