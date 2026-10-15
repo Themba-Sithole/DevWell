@@ -79,6 +79,82 @@ internal fun teamNameTooLong(name: String, savedName: String): Boolean =
 internal fun nameCounterLabel(name: String): String =
     "${name.trim().length}/${TeamSettingsRules.NAME_MAX_LENGTH}"
 
+/** What the team wellbeing card shows. Built from the anonymous team average only. */
+internal data class WellbeingDisplay(
+    val score: String,
+    val band: String,
+    val skin: ChipSkin,
+    /** Ring fill in 0..1, or null when there is no average to draw. */
+    val ringFraction: Float?,
+)
+
+/** A missing or non-finite average is shown as "-" with a neutral label, never as 0 or "Needs attention". */
+internal fun wellbeingDisplay(average: Double?): WellbeingDisplay {
+    val value = average?.takeIf { it.isFinite() }
+        ?: return WellbeingDisplay("-", "Not enough data yet", ChipSkin.Neutral, null)
+    return WellbeingDisplay(
+        score = value.oneDecimal(),
+        band = wellbeingBand(value),
+        skin = when {
+            value >= 4.0 -> ChipSkin.Green
+            value >= 3.0 -> ChipSkin.Neutral
+            else -> ChipSkin.Amber
+        },
+        ringFraction = (value / 5.0).toFloat().coerceIn(0f, 1f),
+    )
+}
+
+/** Text for one Insights card. Built from anonymous team averages only. */
+internal data class InsightCardText(val emoji: String, val title: String, val body: String, val amber: Boolean)
+
+/** The three insight helpers return null when the average is missing, so the card is hidden instead of showing 0. */
+internal fun workloadInsight(average: Double?): InsightCardText? {
+    val workload = average?.takeIf { it.isFinite() } ?: return null
+    val heavy = workload > 3.5
+    return InsightCardText(
+        emoji = if (heavy) "⚠️" else "✅",
+        title = if (heavy) "Workload is elevated" else "Workload stable",
+        body = if (heavy) {
+            ("Team workload averages %.1f/5 right now — heavier than ideal. Worth exploring in " +
+                "your next team check-in.").format(workload)
+        } else {
+            "Team workload has remained relatively balanced — no spikes in the current data."
+        },
+        amber = heavy,
+    )
+}
+
+internal fun afterHoursInsight(averageMinutes: Double?): InsightCardText? {
+    val minutes = averageMinutes?.takeIf { it.isFinite() } ?: return null
+    val high = minutes > 60.0
+    return InsightCardText(
+        emoji = if (high) "⚠️" else "🌙",
+        title = if (high) "After-hours work trending up" else "After-hours work is low",
+        body = if (high) {
+            ("Average after-hours work rose to %.1f hrs/night. Worth exploring in your next " +
+                "team check-in.").format(minutes / 60.0)
+        } else {
+            "The team is logging %.1f hrs/night after hours — within a healthy range.".format(minutes / 60.0)
+        },
+        amber = high,
+    )
+}
+
+internal fun focusInsight(average: Double?): InsightCardText? {
+    val focus = average?.takeIf { it.isFinite() } ?: return null
+    val solid = focus >= 6.5
+    return InsightCardText(
+        emoji = "🎯",
+        title = if (solid) "Focus time is solid" else "Focus time could use support",
+        body = if (solid) {
+            "Average team focus is %.1f/10. Keep supporting deep work blocks.".format(focus)
+        } else {
+            "Average team focus is %.1f/10. Consider protecting more uninterrupted work time.".format(focus)
+        },
+        amber = !solid,
+    )
+}
+
 /** One bar on the manager chart. Holds a team average only, never an individual score. */
 internal data class TeamChartBar(val label: String, val value: Double, val scaleMax: Int) {
     /** Share of the track to fill, always within 0..1. */
@@ -206,7 +282,7 @@ fun ManagerHomeScreen(
             }
         } else {
             item {
-                val wellbeing = safe.averageWellbeing ?: 0.0
+                val wellbeing = wellbeingDisplay(safe.averageWellbeing)
                 DevWellCard {
                     Text(
                         "Team well-being score",
@@ -218,26 +294,21 @@ fun ManagerHomeScreen(
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(
-                                    wellbeing.oneDecimal(),
+                                    wellbeing.score,
                                     style = MaterialTheme.typography.headlineLarge,
                                     color = DevGreen,
                                 )
-                                Text(
-                                    "/5",
-                                    Modifier.padding(bottom = 4.dp, start = 4.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = InkMuted,
-                                )
+                                if (wellbeing.ringFraction != null) {
+                                    Text(
+                                        "/5",
+                                        Modifier.padding(bottom = 4.dp, start = 4.dp),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = InkMuted,
+                                    )
+                                }
                             }
                             Spacer(Modifier.height(6.dp))
-                            Chip(
-                                wellbeingBand(wellbeing),
-                                skin = when {
-                                    wellbeing >= 4.0 -> ChipSkin.Green
-                                    wellbeing >= 3.0 -> ChipSkin.Neutral
-                                    else -> ChipSkin.Amber
-                                },
-                            )
+                            Chip(wellbeing.band, skin = wellbeing.skin)
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 "${safe.responseCount} anonymous participants this period",
@@ -247,7 +318,7 @@ fun ManagerHomeScreen(
                         }
                         Spacer(Modifier.width(12.dp))
                         ScoreRing(
-                            fraction = (wellbeing / 5.0).toFloat(),
+                            fraction = wellbeing.ringFraction,
                             modifier = Modifier.size(84.dp),
                         )
                     }
@@ -356,8 +427,9 @@ private fun MiniStat(value: String, label: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun ScoreRing(fraction: Float, modifier: Modifier = Modifier) {
-    val progress = fraction.coerceIn(0f, 1f)
+private fun ScoreRing(fraction: Float?, modifier: Modifier = Modifier) {
+    // Null means no average: draw the empty track only and show a dash, never "0%".
+    val progress = fraction?.coerceIn(0f, 1f)
     Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = 6.dp.toPx()
@@ -372,20 +444,22 @@ private fun ScoreRing(fraction: Float, modifier: Modifier = Modifier) {
                 size = arcSize,
                 style = Stroke(stroke, cap = StrokeCap.Round),
             )
-            drawArc(
-                color = DevGreen,
-                startAngle = -90f,
-                sweepAngle = 360f * progress,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(stroke, cap = StrokeCap.Round),
-            )
+            if (progress != null) {
+                drawArc(
+                    color = DevGreen,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = arcSize,
+                    style = Stroke(stroke, cap = StrokeCap.Round),
+                )
+            }
         }
         Text(
-            "${(progress * 100).toInt()}%",
+            progress?.let { "${(it * 100).toInt()}%" } ?: "-",
             style = MaterialTheme.typography.titleSmall,
-            color = DevGreen,
+            color = if (progress == null) InkMuted else DevGreen,
         )
     }
 }
@@ -749,7 +823,7 @@ fun ManagerTeamScreen(
             }
             else -> {
                 item {
-                    val wellbeing = safe.averageWellbeing ?: 0.0
+                    val wellbeing = wellbeingDisplay(safe.averageWellbeing)
                     DevWellCard {
                         Text("Team well-being score", style = MaterialTheme.typography.bodySmall, color = InkMuted)
                         Spacer(Modifier.height(6.dp))
@@ -757,30 +831,25 @@ fun ManagerTeamScreen(
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.Bottom) {
                                     Text(
-                                        wellbeing.oneDecimal(),
+                                        wellbeing.score,
                                         style = MaterialTheme.typography.headlineLarge,
                                         color = DevGreen,
                                     )
-                                    Text(
-                                        "/5",
-                                        Modifier.padding(bottom = 4.dp, start = 4.dp),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = InkMuted,
-                                    )
+                                    if (wellbeing.ringFraction != null) {
+                                        Text(
+                                            "/5",
+                                            Modifier.padding(bottom = 4.dp, start = 4.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = InkMuted,
+                                        )
+                                    }
                                 }
                                 Spacer(Modifier.height(6.dp))
-                                Chip(
-                                    wellbeingBand(wellbeing),
-                                    skin = when {
-                                        wellbeing >= 4.0 -> ChipSkin.Green
-                                        wellbeing >= 3.0 -> ChipSkin.Neutral
-                                        else -> ChipSkin.Amber
-                                    },
-                                )
+                                Chip(wellbeing.band, skin = wellbeing.skin)
                             }
                             Spacer(Modifier.width(12.dp))
                             ScoreRing(
-                                fraction = (wellbeing / 5.0).toFloat(),
+                                fraction = wellbeing.ringFraction,
                                 modifier = Modifier.size(84.dp),
                             )
                         }
@@ -846,76 +915,58 @@ fun ManagerInsightsScreen(aggregate: TeamAggregate?) {
                 }
             }
         } else {
-            val workload = safe.averageWorkload ?: 0.0
-            val afterHours = safe.averageAfterHoursMinutes ?: 0.0
-            val focus = safe.averageFocus ?: 0.0
-            item {
-                ManagerInsightCard(
-                    emoji = if (workload <= 3.5) "✅" else "⚠️",
-                    title = if (workload <= 3.5) "Workload stable" else "Workload is elevated",
-                    body = if (workload <= 3.5) {
-                        "Team workload has remained relatively balanced — no spikes in the current data."
-                    } else {
-                        "Team workload averages %.1f/5 right now — heavier than ideal. Worth exploring in " +
-                            "your next team check-in.".format(workload)
-                    },
-                    amber = workload > 3.5,
-                )
+            val insights = listOfNotNull(
+                workloadInsight(safe.averageWorkload),
+                afterHoursInsight(safe.averageAfterHoursMinutes),
+                focusInsight(safe.averageFocus),
+            )
+            if (insights.isEmpty()) {
+                item {
+                    DevWellCard {
+                        Text("Not enough data yet", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Workload, after-hours and focus insights appear once team check-ins include them.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                    }
+                }
             }
-            item {
-                ManagerInsightCard(
-                    emoji = if (afterHours <= 60.0) "🌙" else "⚠️",
-                    title = if (afterHours <= 60.0) "After-hours work is low" else "After-hours work trending up",
-                    body = if (afterHours <= 60.0) {
-                        "The team is logging %.1f hrs/night after hours — within a healthy range.".format(afterHours / 60.0)
-                    } else {
-                        "Average after-hours work rose to %.1f hrs/night. Worth exploring in your next " +
-                            "team check-in.".format(afterHours / 60.0)
-                    },
-                    amber = afterHours > 60.0,
-                )
+            items(insights) { insight ->
+                ManagerInsightCard(insight.emoji, insight.title, insight.body, insight.amber)
             }
-            item {
-                ManagerInsightCard(
-                    emoji = "🎯",
-                    title = if (focus >= 6.5) "Focus time is solid" else "Focus time could use support",
-                    body = if (focus >= 6.5) {
-                        "Average team focus is %.1f/10. Keep supporting deep work blocks.".format(focus)
-                    } else {
-                        "Average team focus is %.1f/10. Consider protecting more uninterrupted work time."
-                            .format(focus)
-                    },
-                    amber = focus < 6.5,
-                )
-            }
-            item {
-                DevWellCard {
-                    Text("Suggested actions", style = MaterialTheme.typography.titleSmall, color = Ink)
-                    Spacer(Modifier.height(8.dp))
-                    listOf(
-                        "Discuss sustainable workload in your next 1:1s",
-                        "Encourage team to set hard stop times",
-                        "Review recurring meetings for value",
-                        "Celebrate the improving focus trends!",
-                    ).forEach { action ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                Modifier.size(22.dp)
-                                    .background(AccentSurface, RoundedCornerShape(50))
-                                    .border(1.dp, TrackGreen, RoundedCornerShape(50)),
-                                contentAlignment = Alignment.Center,
+            // No suggestions when there is no insight data for them to refer to.
+            if (insights.isNotEmpty()) {
+                item {
+                    DevWellCard {
+                        Text("Suggested actions", style = MaterialTheme.typography.titleSmall, color = Ink)
+                        Spacer(Modifier.height(8.dp))
+                        listOf(
+                            "Discuss sustainable workload in your next 1:1s",
+                            "Encourage team to set hard stop times",
+                            "Review recurring meetings for value",
+                            "Celebrate the improving focus trends!",
+                        ).forEach { action ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    "→",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = DevGreen,
-                                )
+                                Box(
+                                    Modifier.size(22.dp)
+                                        .background(AccentSurface, RoundedCornerShape(50))
+                                        .border(1.dp, TrackGreen, RoundedCornerShape(50)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "→",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DevGreen,
+                                    )
+                                }
+                                Text(action, style = MaterialTheme.typography.bodyMedium, color = Ink)
                             }
-                            Text(action, style = MaterialTheme.typography.bodyMedium, color = Ink)
                         }
                     }
                 }
@@ -964,6 +1015,26 @@ private fun ManagerHomeHiddenPreview() {
 @Composable
 private fun ManagerHomeVisiblePreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate, {}, {}) }
+}
+
+private val previewMissingAverages = previewAggregate.copy(
+    averageWellbeing = null,
+    averageWorkload = null,
+    averageEnergy = null,
+    averageFocus = null,
+    averageAfterHoursMinutes = null,
+)
+
+@Preview(showBackground = true, name = "Visible: averages missing")
+@Composable
+private fun ManagerHomeMissingAveragesPreview() {
+    DevWellTheme { ManagerHomeScreen(previewMissingAverages, {}, {}) }
+}
+
+@Preview(showBackground = true, name = "Insights: averages missing")
+@Composable
+private fun ManagerInsightsMissingAveragesPreview() {
+    DevWellTheme { ManagerInsightsScreen(previewMissingAverages) }
 }
 
 private val previewTeam = Team("preview", "c1", "Mobile Team", memberCount = 8)
