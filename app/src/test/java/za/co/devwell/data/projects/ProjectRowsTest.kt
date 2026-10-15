@@ -29,6 +29,7 @@ class ProjectRowsTest {
                     priority = TaskPriority.HIGH,
                     note = "Run the checks",
                     status = TaskStatus.DONE,
+                    position = 3,
                 ).toDomain(),
             ),
         )
@@ -41,6 +42,7 @@ class ProjectRowsTest {
         assertEquals(TaskPriority.HIGH, project.tasks.single().priority)
         assertEquals("Run the checks", project.tasks.single().note)
         assertEquals(TaskStatus.DONE, project.tasks.single().status)
+        assertEquals(3, project.tasks.single().position)
     }
 
     @Test
