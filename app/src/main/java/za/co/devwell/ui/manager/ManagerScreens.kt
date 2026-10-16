@@ -52,10 +52,11 @@ import kotlin.math.roundToInt
 private fun Double?.oneDecimal(): String = this?.let { "%.1f".format(it) } ?: "-"
 
 /**
- * Roster card wording. The Supabase repository cannot count members yet (RLS hides other users),
- * so Team.memberCount stays at its default 0. Zero or less is treated as "unknown", not "empty".
+ * Roster card wording. [known] is true when the roster loaded (Team.roster != null); only then is 0
+ * a real "no members". Otherwise zero or less means the count is not available.
  */
-internal fun memberCountLabel(count: Int): String = when {
+internal fun memberCountLabel(count: Int, known: Boolean = false): String = when {
+    known && count == 0 -> "No members yet"
     count <= 0 -> "Member count not available yet"
     count == 1 -> "1 member"
     else -> "$count members"
@@ -513,16 +514,14 @@ fun JoinRequestsScreen(
         }
         items(requests, key = { it.id }) { request ->
             DevWellCard(padding = 16.dp) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Avatar(request.userName.initials(), size = 40.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            request.userName,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = Ink,
-                        )
-                        Text(request.userEmail, style = MaterialTheme.typography.bodySmall, color = InkMuted)
-                    }
+                    Text(
+                        request.userName,
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Ink,
+                    )
                     Chip(
                         request.status.name.lowercase().replaceFirstChar { it.uppercase() },
                         skin = when (request.status) {
@@ -684,19 +683,33 @@ fun TeamSettingsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SectionLabel("Team members", Modifier.weight(1f))
                     Text(
-                        memberCountLabel(team.memberCount),
+                        memberCountLabel(team.memberCount, known = team.roster != null),
                         style = MaterialTheme.typography.labelMedium,
                         color = InkMuted,
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Outlined.Person, null, Modifier.size(16.dp), tint = DevGreen)
-                    Text(
-                        "Member names and check-in status appear here once your team connects.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted,
-                    )
+                // Names only: no check-in status or wellbeing data is shown per member.
+                val roster = team.roster
+                if (roster.isNullOrEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.Person, null, Modifier.size(16.dp), tint = DevGreen)
+                        Text(
+                            if (roster == null) "Member names will appear here once they load."
+                            else "No engineers have joined this team yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        roster.forEach { member ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Avatar(member.initials(), size = 28.dp)
+                                Text(member, style = MaterialTheme.typography.bodyMedium, color = Ink)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1037,12 +1050,21 @@ private fun ManagerInsightsMissingAveragesPreview() {
     DevWellTheme { ManagerInsightsScreen(previewMissingAverages) }
 }
 
-private val previewTeam = Team("preview", "c1", "Mobile Team", memberCount = 8)
+private val previewTeam = Team(
+    "preview", "c1", "Mobile Team",
+    memberCount = 3, roster = listOf("Aisha Khan", "Ben Mokoena", "Chloe Smith"),
+)
 
 @Preview(showBackground = true, name = "Settings: valid")
 @Composable
 private fun TeamSettingsValidPreview() {
     DevWellTheme { TeamSettingsScreen(previewTeam, {}) }
+}
+
+@Preview(showBackground = true, name = "Settings: empty roster")
+@Composable
+private fun TeamSettingsEmptyRosterPreview() {
+    DevWellTheme { TeamSettingsScreen(previewTeam.copy(memberCount = 0, roster = emptyList()), {}) }
 }
 
 @Preview(showBackground = true, name = "Settings: name too long")
