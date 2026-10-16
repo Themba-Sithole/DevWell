@@ -17,7 +17,27 @@ class ManagerRowsTest {
         assertEquals("t1", request.teamId)
         assertEquals(JoinRequestStatus.APPROVED, request.status)
         assertEquals("Engineer a1b2c3d4", request.userName)
-        assertEquals("Email not available yet", request.userEmail)
+        assertEquals("", request.userEmail)
+    }
+
+    @Test fun joinRequestRowUsesNameWhenGiven() {
+        val row = JoinRequestRow("r1", "a1b2c3d4-0000", "c1", "t1", status = "pending")
+        assertEquals("Thandi Nkosi", row.toJoinRequest("Thandi Nkosi").userName)
+        assertEquals("Engineer a1b2c3d4", row.toJoinRequest("  ").userName)
+        assertEquals("Engineer a1b2c3d4", row.toJoinRequest(null).userName)
+    }
+
+    @Test fun pendingRequesterRowDecodesNameOnly() {
+        val row = json.decodeFromString<PendingRequesterRow>(
+            """{"request_id":"r1","user_id":"u1","name":"Thandi Nkosi","email":"ignored@example.com"}"""
+        )
+        assertEquals(PendingRequesterRow("r1", "u1", "Thandi Nkosi"), row)
+    }
+
+    @Test fun rosterMemberRowDecodesNameOnly() {
+        val row = json.decodeFromString<RosterMemberRow>("""{"user_id":"u1","name":"Sam Peters"}""")
+        assertEquals(RosterMemberRow("u1", "Sam Peters"), row)
+        assertNull(json.decodeFromString<RosterMemberRow>("""{"user_id":"u2"}""").name)
     }
 
     @Test fun createdAtIsOptional() {
