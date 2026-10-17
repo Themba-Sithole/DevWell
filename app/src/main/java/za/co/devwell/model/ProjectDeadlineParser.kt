@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.Month
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 object ProjectDeadlineParser {
@@ -69,4 +70,13 @@ object ProjectDeadlineParser {
         val formatter = if (date.year == today.year) displayFormat else displayWithYearFormat
         return date.format(formatter)
     }
+
+    /**
+     * Days from today until the deadline; negative when overdue, null when unparseable.
+     */
+    fun daysUntil(label: String, today: LocalDate = LocalDate.now()): Long? =
+        runCatching { ChronoUnit.DAYS.between(today, parse(label, today)) }.getOrNull()
+
+    fun isOverdue(label: String, today: LocalDate = LocalDate.now()): Boolean =
+        daysUntil(label, today)?.let { it < 0 } ?: false
 }

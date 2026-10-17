@@ -60,12 +60,6 @@ object SmartTipsEngine {
     fun topNudge(projects: List<DevProject>, today: LocalDate = LocalDate.now()): String? =
         generate(projects, today).firstOrNull()?.message
 
-    private fun daysUntil(deadlineLabel: String, today: LocalDate): Long {
-        return try {
-            val parsed = ProjectDeadlineParser.parse(deadlineLabel, today)
-            ChronoUnit.DAYS.between(today, parsed)
-        } catch (_: Exception) {
-            Long.MAX_VALUE
-        }
-    }
+    private fun daysUntil(deadlineLabel: String, today: LocalDate): Long =
+        ProjectDeadlineParser.daysUntil(deadlineLabel, today) ?: Long.MAX_VALUE
 }
