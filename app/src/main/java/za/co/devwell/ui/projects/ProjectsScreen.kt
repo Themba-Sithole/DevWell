@@ -37,11 +37,14 @@ import kotlin.math.roundToInt
 import za.co.devwell.data.projects.formatDeadline
 import za.co.devwell.data.projects.isValidDeadline
 import za.co.devwell.model.DevProject
+import za.co.devwell.model.ProjectDeadlineParser
 import za.co.devwell.model.ProjectTask
 import za.co.devwell.model.SmartTip
 import za.co.devwell.model.SmartTipsEngine
 import za.co.devwell.model.TaskPriority
 import za.co.devwell.model.TaskStatus
+import za.co.devwell.ui.components.Chip
+import za.co.devwell.ui.components.ChipSkin
 import za.co.devwell.ui.components.DevWellDateField
 import za.co.devwell.ui.components.DevWellDialog
 import za.co.devwell.ui.components.DevWellTextField
@@ -405,7 +408,20 @@ private fun ProjectCard(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MetaLabel(Icons.Outlined.Schedule, "Due ${project.deadline}")
+                    val projectOverdue = project.progress < 100 && ProjectDeadlineParser.isOverdue(project.deadline)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MetaLabel(
+                            Icons.Outlined.Schedule,
+                            "Due ${project.deadline}",
+                            tint = if (projectOverdue) RedText else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (projectOverdue) {
+                            Chip("Overdue", skin = ChipSkin.Red)
+                        }
+                    }
                     MetaLabel(Icons.Outlined.TaskAlt, "$doneCount of ${project.tasks.size} done")
                 }
 
@@ -537,7 +553,11 @@ private fun ProgressRing(progress: Int, accent: Color) {
 }
 
 @Composable
-private fun MetaLabel(icon: ImageVector, text: String) {
+private fun MetaLabel(
+    icon: ImageVector,
+    text: String,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -546,9 +566,9 @@ private fun MetaLabel(icon: ImageVector, text: String) {
             icon,
             contentDescription = null,
             Modifier.size(15.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = tint,
         )
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text, style = MaterialTheme.typography.bodySmall, color = tint)
     }
 }
 
@@ -577,6 +597,7 @@ private fun TaskRow(
             ),
         )
         Spacer(Modifier.width(8.dp))
+        val taskOverdue = !task.isDone && ProjectDeadlineParser.isOverdue(task.deadline)
         Column(
             Modifier
                 .weight(1f)
@@ -599,8 +620,11 @@ private fun TaskRow(
                 Text(
                     task.deadline,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (taskOverdue) RedText else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (taskOverdue) {
+                    Chip("Overdue", skin = ChipSkin.Red)
+                }
             }
             if (task.note.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
