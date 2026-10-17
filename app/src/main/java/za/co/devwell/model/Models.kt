@@ -47,6 +47,8 @@ data class Team(
     val checkInCadence: String? = "Daily",
     val lowWellbeingThreshold: Double? = 2.0,
     val memberCount: Int = 0,
+    /** Active member names only (team_roster). null = not loaded; empty = no members. Never wellbeing data. */
+    val roster: List<String>? = null,
 )
 
 data class JoinRequest(
