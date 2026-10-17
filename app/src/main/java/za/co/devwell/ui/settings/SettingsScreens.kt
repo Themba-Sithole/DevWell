@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -24,8 +25,10 @@ import androidx.compose.material.icons.outlined.AddComment
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
@@ -35,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import za.co.devwell.model.AiMessage
@@ -48,7 +53,6 @@ import za.co.devwell.ui.theme.*
 @Composable
 fun ProfileScreen(
     role: UserRole,
-    onNotifications: () -> Unit,
     onSignOut: () -> Unit,
     name: String = "",
     email: String = "",
@@ -56,8 +60,7 @@ fun ProfileScreen(
     onToggleDaily: (Boolean) -> Unit = {},
     onTips: () -> Unit = {},
     onExercises: () -> Unit = {},
-    onPrivacySettings: () -> Unit = {},
-    onTeamSettings: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -107,17 +110,6 @@ fun ProfileScreen(
                 onCheckedChange = onToggleDaily,
                 subtitle = "9:00 AM",
             )
-            Spacer(Modifier.height(12.dp))
-            DevWellDivider()
-            Spacer(Modifier.height(12.dp))
-            SectionLabel("Privacy")
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Managers never see individual check-ins. Team insights require at least " +
-                    "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct participants.",
-                style = MaterialTheme.typography.bodySmall,
-                color = InkMuted,
-            )
         }
         if (role == UserRole.ENGINEER) {
             DevWellCard(padding = 0.dp) {
@@ -141,27 +133,11 @@ fun ProfileScreen(
         DevWellCard(padding = 0.dp) {
             Column(Modifier.padding(top = 14.dp)) { SectionLabel("Account", Modifier.padding(horizontal = 14.dp)) }
             Spacer(Modifier.height(4.dp))
-            if (role == UserRole.MANAGER) {
-                SettingsRow(
-                    icon = Icons.Outlined.Settings,
-                    title = "Team settings",
-                    subtitle = "Name, timezone and check-in schedule",
-                    onClick = onTeamSettings,
-                )
-                DevWellDivider()
-            }
             SettingsRow(
-                icon = Icons.Outlined.Shield,
-                title = "Privacy settings",
-                subtitle = "What DevWell stores and shares",
-                onClick = onPrivacySettings,
-            )
-            DevWellDivider()
-            SettingsRow(
-                icon = Icons.Outlined.Notifications,
-                title = "Notification preferences",
-                subtitle = "Daily reminder, quiet hours and category controls",
-                onClick = onNotifications,
+                icon = Icons.Outlined.Settings,
+                title = "Settings",
+                subtitle = "Account, privacy, notifications and help",
+                onClick = onSettings,
             )
             DevWellDivider()
             Row(
@@ -183,16 +159,7 @@ fun ProfileScreen(
                 )
             }
         }
-        PrivacyNotice(
-            when (role) {
-                UserRole.ENGINEER ->
-                    "Your data is private and secure. Managers only see anonymised team insights."
-                UserRole.MANAGER ->
-                    "You only see anonymised, aggregated team data. No individual responses are accessible."
-                UserRole.ADMIN ->
-                    "The admin role manages access but does not expose individual wellbeing responses."
-            },
-        )
+        PrivacyNotice(privacyNoticeFor(role))
     }
 }
 
@@ -224,6 +191,216 @@ private fun SettingsRow(
 
 private fun Modifier.clickableRow(onClick: () -> Unit): Modifier =
     this.clickable(onClick = onClick)
+
+private fun privacyNoticeFor(role: UserRole): String = when (role) {
+    UserRole.ENGINEER ->
+        "Your data is private and secure. Managers only see anonymised team insights."
+    UserRole.MANAGER ->
+        "You only see anonymised, aggregated team data. No individual responses are accessible."
+    UserRole.ADMIN ->
+        "The admin role manages access but does not expose individual wellbeing responses."
+}
+
+/**
+ * General settings hub. Replaces the old profile entry for privacy settings and
+ * groups account details, privacy, notification and help destinations.
+ */
+@Composable
+fun SettingsScreen(
+    role: UserRole,
+    name: String,
+    email: String,
+    onAccountProfile: () -> Unit,
+    onManagerVisibility: () -> Unit,
+    onNotifications: () -> Unit,
+    onHelpAbout: () -> Unit,
+    onTeamSettings: () -> Unit = {},
+    onBack: () -> Unit = {},
+) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { BackHeader("Settings", "Account, privacy, notifications and help", onBack) }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp)) {
+                    SectionLabel("Account & profile", Modifier.padding(horizontal = 14.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                SettingsRow(
+                    icon = Icons.Outlined.Person,
+                    title = "Account & profile",
+                    subtitle = (if (name.isNotBlank()) name else "Your details") +
+                        if (email.isNotBlank()) " · $email" else "",
+                    onClick = onAccountProfile,
+                )
+                if (role == UserRole.MANAGER) {
+                    DevWellDivider()
+                    SettingsRow(
+                        icon = Icons.Outlined.Settings,
+                        title = "Team settings",
+                        subtitle = "Name, timezone and check-in schedule",
+                        onClick = onTeamSettings,
+                    )
+                }
+                DevWellDivider()
+                SettingsRow(
+                    icon = Icons.Outlined.Notifications,
+                    title = "Notification preferences",
+                    subtitle = "Daily reminder, quiet hours and category controls",
+                    onClick = onNotifications,
+                )
+            }
+        }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp)) {
+                    SectionLabel("Privacy", Modifier.padding(horizontal = 14.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                SettingsRow(
+                    icon = Icons.Outlined.Shield,
+                    title = "What my manager sees",
+                    subtitle = "What DevWell stores and what it never shares",
+                    onClick = onManagerVisibility,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Managers never see individual check-ins. Team insights require at least " +
+                        "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct participants.",
+                    Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp)) {
+                    SectionLabel("Help & about", Modifier.padding(horizontal = 14.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                SettingsRow(
+                    icon = Icons.Outlined.HelpOutline,
+                    title = "Help & about",
+                    subtitle = "FAQ, support, policies and app version",
+                    onClick = onHelpAbout,
+                )
+            }
+        }
+        item { PrivacyNotice(privacyNoticeFor(role)) }
+    }
+}
+
+/** Editable account details: display name, email address and password. */
+@Composable
+fun AccountSettingsScreen(
+    name: String,
+    email: String,
+    busy: Boolean,
+    error: String?,
+    message: String?,
+    onSaveProfile: (name: String, email: String) -> Unit,
+    onChangePassword: (password: String, confirmation: String) -> Unit,
+    onDismissFeedback: () -> Unit,
+    onBack: () -> Unit = {},
+) {
+    var nameField by rememberSaveable(name) { mutableStateOf(name) }
+    var emailField by rememberSaveable(email) { mutableStateOf(email) }
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirmation by rememberSaveable { mutableStateOf("") }
+
+    // Stale feedback from a previous screen visit should not follow the user in.
+    LaunchedEffect(Unit) { onDismissFeedback() }
+
+    val profileChanged = nameField.trim() != name || emailField.trim() != email
+
+    LazyColumn(
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { BackHeader("Account & profile", "Edit your name, email and password", onBack) }
+        item {
+            DevWellCard {
+                SectionLabel("Your details")
+                Spacer(Modifier.height(12.dp))
+                DevWellTextField(nameField, { nameField = it }, label = "Full name")
+                Spacer(Modifier.height(10.dp))
+                DevWellTextField(
+                    emailField,
+                    { emailField = it },
+                    label = "Email address",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Your name is shared with your team. Changing your email sends a " +
+                        "confirmation link to the new address before it takes effect.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+                Spacer(Modifier.height(14.dp))
+                DevWellButton(
+                    "Save changes",
+                    onClick = { onSaveProfile(nameField.trim(), emailField.trim()) },
+                    enabled = !busy && profileChanged && nameField.isNotBlank() && emailField.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        item {
+            DevWellCard {
+                SectionLabel("Change password")
+                Spacer(Modifier.height(12.dp))
+                DevWellTextField(
+                    password,
+                    { password = it },
+                    label = "New password",
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                Spacer(Modifier.height(10.dp))
+                DevWellTextField(
+                    confirmation,
+                    { confirmation = it },
+                    label = "Confirm new password",
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Use at least 8 characters. You stay signed in on this device after changing it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+                Spacer(Modifier.height(14.dp))
+                DevWellButton(
+                    "Update password",
+                    onClick = {
+                        onChangePassword(password, confirmation)
+                        password = ""
+                        confirmation = ""
+                    },
+                    enabled = !busy && password.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.Outline,
+                )
+            }
+        }
+        if (error != null || message != null) {
+            item { AuthFeedback(error = error, message = message) }
+        }
+        item {
+            PrivacyNotice(
+                "DevWell never stores your password. Changes are applied to your secure account session.",
+            )
+        }
+    }
+}
 
 @Composable
 fun NotificationsScreen(

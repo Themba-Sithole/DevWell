@@ -19,7 +19,11 @@ object Routes {
     const val NOTIFICATIONS = "engineer/notifications"
     const val TIPS = "engineer/tips"
     const val EXERCISES = "engineer/exercises"
-    const val PRIVACY_SETTINGS = "engineer/privacy_settings"
+    // General settings are shared by every role.
+    const val SETTINGS = "settings"
+    const val ACCOUNT_SETTINGS = "settings/account"
+    const val MANAGER_VISIBILITY = "settings/manager_visibility"
+    const val HELP_ABOUT = "settings/help_about"
 
     // Manager
     const val MANAGER_HOME = "manager/home"
