@@ -1,5 +1,9 @@
 package za.co.devwell.ui.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +14,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,8 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import za.co.devwell.BuildConfig
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
 
@@ -263,12 +273,12 @@ private fun ExerciseCard(exercise: Exercise, expanded: Boolean, onClick: () -> U
 }
 
 @Composable
-fun PrivacySettingsScreen(onBack: () -> Unit, onManagerPreview: () -> Unit) {
+fun WhatMyManagerSeesScreen(onBack: () -> Unit, onManagerPreview: () -> Unit) {
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { BackHeader("Privacy Settings", "How DevWell protects your data", onBack) }
+        item { BackHeader("What my manager sees", "How DevWell protects your data", onBack) }
         item {
             DevWellCard {
                 SectionLabel("What DevWell stores")
@@ -302,7 +312,7 @@ fun PrivacySettingsScreen(onBack: () -> Unit, onManagerPreview: () -> Unit) {
                 }
                 Spacer(Modifier.height(12.dp))
                 DevWellButton(
-                    "Preview what my manager sees", onManagerPreview,
+                    "Preview the exact manager view", onManagerPreview,
                     modifier = Modifier.fillMaxWidth(),
                     variant = ButtonVariant.Outline,
                 )
@@ -334,5 +344,295 @@ private fun BulletRow(text: String, dotColor: androidx.compose.ui.graphics.Color
     ) {
         Text(icon, style = MaterialTheme.typography.bodyMedium, color = dotColor, fontWeight = FontWeight.Bold)
         Text(text, style = MaterialTheme.typography.bodyMedium, color = Ink)
+    }
+}
+
+private data class Faq(val question: String, val answer: String)
+
+private val FAQ = listOf(
+    Faq(
+        "What is DevWell?",
+        "DevWell is a daily well-being check-in for software teams. A check-in takes about " +
+            "30 seconds and records how you feel about your wellbeing, workload, energy, focus " +
+            "and after-hours time, so patterns become visible before they become burnout.",
+    ),
+    Faq(
+        "Who can see my check-ins?",
+        "Only you. Your individual responses and private notes are never shown to managers, " +
+            "administrators or teammates. Team insights are published only after at least " +
+            "${za.co.devwell.model.PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct members " +
+            "have checked in, and even then only as anonymised averages.",
+    ),
+    Faq(
+        "Can my manager see my notes or exact scores?",
+        "No. Managers see team averages and response counts only. They can never open an " +
+            "individual check-in, a private note, or a personal trend.",
+    ),
+    Faq(
+        "How often should I check in?",
+        "Once a day is ideal, at roughly the same time. One check-in per day is saved — " +
+            "checking in again later simply updates today's entry.",
+    ),
+    Faq(
+        "Is the AI assistant medical advice?",
+        "No. It offers general, practical guidance only. If you are struggling, please speak to " +
+            "a qualified professional or your GP.",
+    ),
+    Faq(
+        "I want to change my team or delete my account",
+        "Ask your team manager or company administrator. They can review join requests and " +
+            "suspend accounts, and can remove your data on request.",
+    ),
+)
+
+private const val SUPPORT_ADDRESS = "support@devwell.io"
+
+/** Compose a plain-text mailto: message with the app and device details attached. */
+private fun emailBody(prefix: String): String = buildString {
+    appendLine(prefix)
+    appendLine()
+    appendLine("App version: ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
+    append("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, " +
+        "Android ${android.os.Build.VERSION.RELEASE}")
+}
+
+private fun openEmail(context: Context, address: String, subject: String, body: String) {
+    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$address")).apply {
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, body)
+    }
+    try {
+        context.startActivity(intent)
+    } catch (error: Exception) {
+        Toast.makeText(context, "No email app found — write to $address instead.", Toast.LENGTH_LONG).show()
+    }
+}
+
+/** Expandable row used by the FAQ, policies and acknowledgements sections. */
+@Composable
+private fun ExpandableRow(
+    title: String,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val rotation by animateFloatAsState(if (expanded) 90f else 0f, label = "chevron")
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.Medium)
+                if (subtitle != null) {
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                }
+            }
+            Icon(
+                Icons.AutoMirrored.Outlined.KeyboardArrowRight, null,
+                Modifier.size(18.dp).rotate(rotation), tint = PaleGreen,
+            )
+        }
+        if (expanded) {
+            Column(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContactRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = Ink, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = InkMuted)
+        }
+        Icon(
+            Icons.AutoMirrored.Outlined.KeyboardArrowRight, null,
+            Modifier.size(18.dp), tint = PaleGreen,
+        )
+    }
+}
+
+@Composable
+private fun PolicyText(body: String) {
+    body.split("\n\n").forEach { paragraph ->
+        Text(paragraph, style = MaterialTheme.typography.bodySmall, color = InkMuted)
+    }
+}
+
+/** Help & About: FAQ, support contacts, policies and app version. */
+@Composable
+fun HelpAboutScreen(onBack: () -> Unit = {}) {
+    val context = LocalContext.current
+    var openFaq by rememberSaveable { mutableIntStateOf(-1) }
+    var openPolicy by rememberSaveable { mutableIntStateOf(-1) }
+    var acknowledgementsOpen by rememberSaveable { mutableStateOf(false) }
+
+    LazyColumn(
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { BackHeader("Help & about", "Support, policies and app details", onBack) }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp, start = 14.dp, end = 14.dp)) {
+                    SectionLabel("Frequently asked questions")
+                }
+                FAQ.forEachIndexed { index, faq ->
+                    DevWellDivider()
+                    ExpandableRow(
+                        title = faq.question,
+                        expanded = openFaq == index,
+                        onClick = { openFaq = if (openFaq == index) -1 else index },
+                    ) {
+                        Text(faq.answer, style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp, start = 14.dp, end = 14.dp)) {
+                    SectionLabel("Contact support")
+                }
+                DevWellDivider()
+                ContactRow(
+                    icon = Icons.Outlined.Email,
+                    title = "Email support",
+                    subtitle = SUPPORT_ADDRESS,
+                    onClick = {
+                        openEmail(context, SUPPORT_ADDRESS, "DevWell support request", emailBody("Hi DevWell team,"))
+                    },
+                )
+                DevWellDivider()
+                ContactRow(
+                    icon = Icons.Outlined.BugReport,
+                    title = "Report a problem",
+                    subtitle = "Tell us what went wrong — version and device are attached",
+                    onClick = {
+                        openEmail(
+                            context, SUPPORT_ADDRESS,
+                            "DevWell problem report",
+                            emailBody("What happened:\n\nWhat I expected:\n\nSteps to reproduce:"),
+                        )
+                    },
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp, start = 14.dp, end = 14.dp)) {
+                    SectionLabel("Policies")
+                }
+                ExpandableRow(
+                    title = "Privacy policy",
+                    subtitle = "What DevWell stores and who can see it",
+                    expanded = openPolicy == 0,
+                    onClick = { openPolicy = if (openPolicy == 0) -1 else 0 },
+                ) {
+                    PolicyText(
+                        "DevWell stores your check-in responses (wellbeing, workload, energy, " +
+                            "focus, after-hours minutes and any note you write), your account " +
+                            "details (name, email, company and team) and your notification " +
+                            "preferences on this device.\n\n" +
+                            "Managers only see anonymised team summaries, and only once at least " +
+                            "${za.co.devwell.model.PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
+                            "distinct members have checked in. Individual responses, notes and " +
+                            "personal trends are never shared.\n\n" +
+                            "Data is stored in a Supabase project protected by row-level " +
+                            "security. Ask your administrator to delete your account and its " +
+                            "data at any time. Assistant conversations are sent to the AI " +
+                            "provider only after you consent, and are not stored by DevWell.",
+                    )
+                }
+                DevWellDivider()
+                ExpandableRow(
+                    title = "Terms of service",
+                    subtitle = "Using DevWell responsibly",
+                    expanded = openPolicy == 1,
+                    onClick = { openPolicy = if (openPolicy == 1) -1 else 1 },
+                ) {
+                    PolicyText(
+                        "DevWell is a student-built well-being companion. It offers general " +
+                            "guidance only and is not medical, psychological or professional " +
+                            "advice. If you are in crisis, contact a qualified professional or " +
+                            "your local emergency services.\n\n" +
+                            "Use DevWell for its intended purpose, keep your sign-in details " +
+                            "secure, and do not attempt to access another member's data. " +
+                            "Accounts that misuse the service may be suspended by an " +
+                            "administrator.\n\n" +
+                            "Team insights stay hidden until enough members check in to protect " +
+                            "anonymity. The service is provided as-is for the duration of the " +
+                            "project and may change or stop without notice.",
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp, start = 14.dp, end = 14.dp)) {
+                    SectionLabel("About")
+                }
+                DevWellDivider()
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconTile(Icons.Outlined.Info)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "DevWell for Android",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Ink,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            "Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                    }
+                }
+                DevWellDivider()
+                ExpandableRow(
+                    title = "Acknowledgements",
+                    subtitle = "Open-source software and credits",
+                    expanded = acknowledgementsOpen,
+                    onClick = { acknowledgementsOpen = !acknowledgementsOpen },
+                ) {
+                    listOf(
+                        "Jetpack Compose, Material 3, Navigation Compose and WorkManager — Apache-2.0",
+                        "Supabase Kotlin (Auth, PostgREST, Functions) — Apache-2.0",
+                        "Ktor and kotlinx.serialization — Apache-2.0",
+                        "Outfit and Inter typefaces — SIL Open Font License",
+                    ).forEach { credit -> BulletRow(credit, DevGreen) }
+                    Text(
+                        "Thanks to the DevWell team, our mentors and every engineer who tested " +
+                            "the check-in flow.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        item {
+            PrivacyNotice("Nothing on this page is tracked or reported — it is here for you.")
+        }
     }
 }
