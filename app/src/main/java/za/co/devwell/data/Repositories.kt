@@ -24,6 +24,13 @@ import kotlinx.serialization.json.putJsonArray
 import za.co.devwell.model.*
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
+import za.co.devwell.data.offline.CheckInQueuedException
+import za.co.devwell.data.offline.PendingCheckInDao
+import za.co.devwell.data.offline.isNetworkFailure
+import za.co.devwell.data.offline.toPending
+import za.co.devwell.data.offline.PendingCheckIn
+import kotlinx.coroutines.flow.combine
 
 /* --------------------------------------------------------------------------
  * Repository contracts — UI/ViewModels depend on these, never on Supabase SDKs.
@@ -56,7 +63,9 @@ interface OnboardingRepository {
 interface WellbeingRepository {
     val checkIns: Flow<List<CheckIn>>
     suspend fun saveCheckIn(draft: CheckInDraft)
+    suspend fun syncPending(): Boolean = true
 }
+
 
 interface TeamInsightsRepository {
     /** Same safe aggregate for manager insights and engineer privacy preview. */
@@ -260,23 +269,70 @@ private data class NewCheckInRow(
 
 @Serializable
 private data class CheckInPatch(val responses: CheckInResponsesOut)
+@Serializable
+private data class QueuedCheckInRow(
+    val id: String,
+    @SerialName("user_id") val userId: String,
+    val responses: CheckInResponsesOut,
+    @SerialName("created_at") val createdAt: String,
+)
 
+private fun PendingCheckIn.toOut() = CheckInResponsesOut(
+    wellbeing = wellbeing,
+    workload = workload,
+    energy = energy,
+    focus = focus,
+    afterHoursMinutes = afterHoursMinutes,
+    note = note,
+)
+private fun PendingCheckIn.asCheckIn() = CheckIn(
+    id = "pending-$id",
+    userId = userId,
+    dateLabel = localDate,
+    values = CheckInDraft(
+        wellbeing = wellbeing,
+        workload = workload,
+        energy = energy,
+        focus = focus,
+        afterHoursMinutes = afterHoursMinutes,
+        note = note,
+    ),
+)
 
 class SupabaseWellbeingRepository(
     private val client: SupabaseClient?,
     currentUser: Flow<DevWellUser?>,
     scope: CoroutineScope,
+    private val queue: PendingCheckInDao,
+    private val scheduleSync: () -> Unit,
 ) : WellbeingRepository {
-    private val items = MutableStateFlow<List<CheckIn>>(emptyList())
-    override val checkIns: Flow<List<CheckIn>> = items
+    // Check-ins that exist on the server, and check-ins still waiting on the phone.
+    private val serverItems = MutableStateFlow<List<CheckIn>>(emptyList())
+    private val pendingItems = MutableStateFlow<List<CheckIn>>(emptyList())
+
+    /** Server rows plus queued ones. A queued check-in wins over the server row for the same day. */
+    override val checkIns: Flow<List<CheckIn>> = combine(serverItems, pendingItems) { server, pending ->
+        val pendingDates = pending.map { it.dateLabel }.toSet()
+        (server.filter { it.dateLabel !in pendingDates } + pending).sortedByDescending { it.dateLabel }
+    }
 
     init {
-        // Reload whenever the signed-in user changes (including sign-out -> empty list).
+        // Reload whenever the signed-in user changes (including sign-out -> empty lists).
         currentUser.onEach { user ->
             if (user == null) {
-                items.value = emptyList()
+                serverItems.value = emptyList()
+                pendingItems.value = emptyList()
             } else {
-                refresh(user.id)
+                reloadPending(user.id)
+                // Opening the app offline must not crash: keep what we have and carry on.
+                try {
+                    refresh(user.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                }
+                // Anything saved offline in an earlier session is uploaded now.
+                if (pendingItems.value.isNotEmpty()) scheduleSync()
             }
         }.launchIn(scope)
     }
@@ -285,34 +341,108 @@ class SupabaseWellbeingRepository(
         "Add the Supabase project URL and public key to local.properties, then rebuild the app."
     )
 
+    private suspend fun reloadPending(userId: String) {
+        pendingItems.value = queue.forUser(userId).map { it.asCheckIn() }
+    }
+
     private suspend fun refresh(userId: String) {
         val rows = connection().from("check_in")
             .select { filter { eq("user_id", userId) } }
             .decodeList<CheckInRow>()
         // Enforce one check-in per day: keep only the most recent row for each date.
-        items.value = rows.sortedByDescending { it.createdAt }
+        serverItems.value = rows.sortedByDescending { it.createdAt }
             .map { it.toCheckIn() }
             .distinctBy { it.dateLabel }
     }
 
     /**
-     * One check-in per day (FR4). If today's check-in already exists it is
-     * updated in place so the engineer can correct a mistake; otherwise a new
-     * row is inserted.
+     * One check-in per day (FR4): update today's row if it exists, otherwise insert.
+     * If the phone can't reach the server, the check-in is kept in the local queue
+     * and CheckInQueuedException tells the ViewModel it was saved offline.
      */
     override suspend fun saveCheckIn(draft: CheckInDraft) {
         val supabase = connection()
         val userId = supabase.auth.currentUserOrNull()?.id
             ?: error("Please sign in again.")
-        val existing = TrendsAnalysis.todayCheckIn(items.value)
-        if (existing == null) {
-            supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft.toOut()))
-        } else {
-            supabase.from("check_in").update(CheckInPatch(responses = draft.toOut())) {
-                filter { eq("id", existing.id) }
+        val today = TrendsAnalysis.today().toString()
+        try {
+            // Look at server rows only, so we never try to update a check-in that isn't uploaded yet.
+            val existing = TrendsAnalysis.todayCheckIn(serverItems.value)
+            if (existing == null) {
+                supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft.toOut()))
+            } else {
+                supabase.from("check_in").update(CheckInPatch(responses = draft.toOut())) {
+                    filter { eq("id", existing.id) }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (!e.isNetworkFailure()) throw e
+            queue.insert(draft.toPending(userId, today))
+            reloadPending(userId)
+            scheduleSync()
+            throw CheckInQueuedException()
+        }
+        // Saved online, so any older offline copy for today is now out of date.
+        queue.deleteForDay(userId, today)
+        reloadPending(userId)
+        refresh(userId)
+    }
+
+    /**
+     * Uploads queued check-ins. Returns false when the connection failed and WorkManager
+     * should retry. An item is deleted from the queue only after the server accepted it.
+     * Items use their own id with upsert, so a retry can never create a duplicate row.
+     */
+    override suspend fun syncPending(): Boolean {
+        val supabase = client ?: return true
+        supabase.auth.awaitInitialization()
+        val userId = supabase.auth.currentUserOrNull()?.id ?: return true
+        val pending = queue.forUser(userId)
+        if (pending.isEmpty()) return true
+        try {
+            refresh(userId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return false
+        }
+        var retry = false
+        for (item in pending) {
+            try {
+                val existing = serverItems.value.firstOrNull { it.dateLabel == item.localDate }
+                if (existing == null) {
+                    supabase.from("check_in").upsert(
+                        QueuedCheckInRow(
+                            id = item.id,
+                            userId = userId,
+                            responses = item.toOut(),
+                            createdAt = Instant.ofEpochMilli(item.createdAt).toString(),
+                        )
+                    )
+                } else {
+                    // One check-in per day: update that day's row instead of adding a second.
+                    supabase.from("check_in").update(CheckInPatch(responses = item.toOut())) {
+                        filter { eq("id", existing.id) }
+                    }
+                }
+                queue.delete(item.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Connection problems are retried; other failures stay queued until the next app start.
+                if (e.isNetworkFailure()) retry = true
             }
         }
-        refresh(userId)
+        reloadPending(userId)
+        try {
+            refresh(userId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+        return !retry
     }
 }
 
@@ -588,7 +718,13 @@ object AppContainer {
             val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
             aiRepository = if (client == null) MockAiGuidanceRepository() else SupabaseAiGuidanceRepository(client)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
-            wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
+            wellbeingRepo = SupabaseWellbeingRepository(
+                client = client,
+                currentUser = identity.currentUser,
+                scope = scope,
+                queue = za.co.devwell.data.offline.OfflineDatabase.get(context).pendingCheckIns(),
+                scheduleSync = { za.co.devwell.data.offline.CheckInSyncScheduler.schedule(context) },
+            )
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
             teamInsightsRepo = if (client == null) {
                 MockTeamInsightsRepository()
