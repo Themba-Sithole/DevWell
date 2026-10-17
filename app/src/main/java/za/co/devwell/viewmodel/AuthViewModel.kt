@@ -80,6 +80,37 @@ class AuthViewModel(
 
     fun refreshProfile() = action { auth.refreshProfile() }
 
+    /**
+     * Saves the two editable profile fields in one action. The email change is
+     * requested first so a rejected or duplicate address reports before the
+     * display name is written.
+     */
+    fun updateProfileDetails(name: String, email: String) {
+        val error = nameValidation(name) ?: emailValidation(email)
+        if (error != null) {
+            state.update { it.copy(error = error, message = null) }
+            return
+        }
+        action {
+            val messages = mutableListOf<String>()
+            if (email.trim() != state.value.user?.email) messages += auth.updateEmail(email)
+            messages += auth.updateName(name)
+            state.update { it.copy(message = messages.joinToString(" ")) }
+        }
+    }
+
+    fun updatePassword(password: String, confirmation: String) {
+        val error = passwordChangeValidation(password, confirmation)
+        if (error != null) {
+            state.update { it.copy(error = error, message = null) }
+            return
+        }
+        action {
+            val message = auth.updatePassword(password)
+            state.update { it.copy(message = message) }
+        }
+    }
+
     fun refreshDirectory() {
         if (directoryJob?.isActive == true) return
         state.update { it.copy(directoryLoading = true, error = null) }

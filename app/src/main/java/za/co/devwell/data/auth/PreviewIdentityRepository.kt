@@ -26,6 +26,15 @@ class PreviewIdentityRepository : AuthRepository, OnboardingRepository {
     }
     override suspend fun signIn(email: String, password: String): Result<DevWellUser> =
         Result.failure(IllegalStateException("Leave preview mode to use real sign-in."))
+    override suspend fun updateName(name: String): String {
+        currentUser.value = currentUser.value?.copy(name = name.trim())
+        return "Your name has been updated."
+    }
+    override suspend fun updateEmail(email: String): String {
+        currentUser.value = currentUser.value?.copy(email = email.trim())
+        return "Your email has been updated."
+    }
+    override suspend fun updatePassword(password: String): String = "Your password has been updated."
     override suspend fun signOut() { currentUser.value = null }
     override suspend fun submitEngineerJoinRequest(companyId: String, teamId: String) {
         check(companies.value.any { it.id == companyId && it.status == CompanyStatus.ACTIVE })

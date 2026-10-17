@@ -15,16 +15,33 @@ fun entryDestination(user: DevWellUser?): EntryDestination = when {
     else -> EntryDestination.ADMIN
 }
 
-fun loginValidation(email: String, password: String): String? = when {
+private val EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+
+fun emailValidation(email: String): String? = when {
     email.isBlank() -> "Enter your email address."
-    !Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email.trim()) -> "Enter a valid email address."
-    password.isBlank() -> "Enter your password."
+    !EMAIL_PATTERN.matches(email.trim()) -> "Enter a valid email address."
     else -> null
 }
 
+fun nameValidation(name: String): String? =
+    if (name.trim().length < 2) "Enter your full name." else null
+
+fun passwordChangeValidation(password: String, confirmation: String): String? = when {
+    password.isBlank() -> "Enter a new password."
+    password.length < 8 -> "Use a password with at least 8 characters."
+    password != confirmation -> "The passwords do not match."
+    else -> null
+}
+
+fun loginValidation(email: String, password: String): String? =
+    emailValidation(email) ?: when {
+        password.isBlank() -> "Enter your password."
+        else -> null
+    }
+
 fun registrationValidation(name: String, email: String, password: String, confirmation: String): String? =
     loginValidation(email, password) ?: when {
-        name.trim().length < 2 -> "Enter your full name."
+        nameValidation(name) != null -> "Enter your full name."
         password.length < 8 -> "Use a password with at least 8 characters."
         password != confirmation -> "The passwords do not match."
         else -> null
