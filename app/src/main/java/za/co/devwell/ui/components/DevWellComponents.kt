@@ -117,6 +117,10 @@ fun DevWellCard(
     ) {
         Column(
             Modifier
+                // Fill the card so the sheen covers the whole surface. Without this the
+                // column wraps its content and cards with narrow content (for example the
+                // profile card) end up with a transparent strip on the right.
+                .fillMaxWidth()
                 .then(
                     if (usesSheen) {
                         Modifier.background(Brush.verticalGradient(listOf(CardSheenTop, CardSheenBottom)))
