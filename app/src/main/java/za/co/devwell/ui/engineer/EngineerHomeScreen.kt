@@ -14,7 +14,6 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Laptop
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,7 +32,6 @@ import za.co.devwell.ui.theme.*
 fun EngineerHomeScreen(
     name: String,
     onCheckIn: () -> Unit,
-    onManagerPreview: () -> Unit,
     onTrends: () -> Unit,
     onInsights: () -> Unit,
     onTeamOverview: () -> Unit,
@@ -142,8 +140,6 @@ fun EngineerHomeScreen(
                 QuickLink(Icons.Outlined.Insights, "Insights", "Supportive patterns from your check-ins", onInsights)
                 DevWellDivider()
                 QuickLink(Icons.Outlined.Groups, "Team overview", "Anonymised team data", onTeamOverview)
-                DevWellDivider()
-                QuickLink(Icons.Outlined.Visibility, "What my manager sees", "Preview the anonymised manager view", onManagerPreview)
             }
         }
         item { PrivacyNotice() }

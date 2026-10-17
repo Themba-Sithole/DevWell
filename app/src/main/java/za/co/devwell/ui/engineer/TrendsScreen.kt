@@ -36,15 +36,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.CheckIn
-import za.co.devwell.model.PrivacyPolicy
 import za.co.devwell.model.TeamAggregate
 import za.co.devwell.model.TrendsAnalysis
 import za.co.devwell.model.TrendsPeriod
 import za.co.devwell.ui.components.*
+import za.co.devwell.ui.manager.ManagerTeamInsights
 import za.co.devwell.ui.theme.*
 import java.util.Locale
 
@@ -320,7 +319,6 @@ private fun GroupedBarChart(
 
 @Composable
 fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
-    val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
     Column(
         Modifier
             .fillMaxSize()
@@ -331,7 +329,7 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
     ) {
         BackHeader(
             "What my manager sees",
-            "Exactly the same safe team output available to management",
+            "Rendered from the same screen your manager opens — not a mock-up",
             onBack,
         )
         Row(
@@ -345,45 +343,21 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
         ) {
             Icon(Icons.Outlined.Info, null, Modifier.size(20.dp), tint = DevGreen)
             Text(
-                "This is the exact view your manager sees. Only anonymised team data is shared — " +
-                    "names, individual scores and private notes are never included.",
+                "Everything inside the dashed frame is the exact manager dashboard, built from your " +
+                    "team's anonymised data. Names, individual scores and private notes are never included.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Ink,
             )
         }
-        Box(
+        Column(
             Modifier
                 .fillMaxWidth()
-                .dashedBorder(BorderGreen, 2.dp, 16.dp),
+                .dashedBorder(BorderGreen, 2.dp, 16.dp)
+                .padding(18.dp),
         ) {
-            Column(
-                Modifier.fillMaxWidth().padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SectionLabel("Manager's view · team overview (anonymised)")
-                if (aggregate == null) {
-                    Text("No team data available yet.", style = MaterialTheme.typography.bodyMedium, color = InkMuted)
-                } else if (safe == null) {
-                    Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
-                    Text(
-                        "Team charts are hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                            "distinct participants are available. Current participants: ${aggregate.responseCount}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted,
-                    )
-                } else {
-                    MetricRow("Wellbeing", safe.averageWellbeing, " / 5")
-                    MetricRow("Workload", safe.averageWorkload, " / 5")
-                    MetricRow("Energy", safe.averageEnergy, " / 10")
-                    MetricRow("Focus", safe.averageFocus, " / 10")
-                    DevWellDivider()
-                    Text(
-                        "Based on ${safe.responseCount} participants — no names or notes.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted,
-                    )
-                }
-            }
+            SectionLabel("Manager's dashboard")
+            Spacer(Modifier.height(10.dp))
+            ManagerTeamInsights(aggregate)
         }
         DevWellCard {
             Text("What your manager cannot see", style = MaterialTheme.typography.titleMedium, color = Ink)
@@ -404,19 +378,6 @@ fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
             }
         }
         PrivacyNotice()
-    }
-}
-
-@Composable
-private fun MetricRow(label: String, value: Double?, suffix: String) {
-    Row(Modifier.fillMaxWidth()) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = InkMuted)
-        Text(
-            value?.let { "%.1f".format(it) + suffix } ?: "—",
-            style = MaterialTheme.typography.bodyLarge,
-            color = DevGreen,
-            fontWeight = FontWeight.SemiBold,
-        )
     }
 }
 

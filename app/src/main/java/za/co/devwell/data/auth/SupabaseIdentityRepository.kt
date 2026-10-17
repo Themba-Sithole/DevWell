@@ -6,6 +6,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -107,7 +108,7 @@ class SupabaseIdentityRepository(
         require(trimmed.length >= 2) { "Enter your full name." }
         val supabase = connection()
         check(supabase.auth.currentSessionOrNull() != null) { "Please sign in again." }
-        supabase.rpc("update_own_profile", buildJsonObject { put("p_name", trimmed) })
+        supabase.postgrest.rpc("update_own_profile", buildJsonObject { put("p_name", trimmed) })
         loadProfile()
         "Your name has been updated."
     }

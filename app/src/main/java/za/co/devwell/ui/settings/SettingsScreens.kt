@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.Send
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.outlined.AddComment
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
@@ -283,7 +283,7 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(4.dp))
                 SettingsRow(
-                    icon = Icons.Outlined.HelpOutline,
+                    icon = Icons.AutoMirrored.Outlined.HelpOutline,
                     title = "Help & about",
                     subtitle = "FAQ, support, policies and app version",
                     onClick = onHelpAbout,
