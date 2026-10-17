@@ -91,10 +91,18 @@ class AuthViewModel(
             state.update { it.copy(error = error, message = null) }
             return
         }
+        val trimmedName = name.trim()
+        val trimmedEmail = email.trim()
+        val nameChanged = trimmedName != state.value.user?.name
+        val emailChanged = trimmedEmail != state.value.user?.email
+        if (!nameChanged && !emailChanged) {
+            state.update { it.copy(error = null, message = "Your details are already up to date.") }
+            return
+        }
         action {
             val messages = mutableListOf<String>()
-            if (email.trim() != state.value.user?.email) messages += auth.updateEmail(email)
-            messages += auth.updateName(name)
+            if (emailChanged) messages += auth.updateEmail(trimmedEmail)
+            if (nameChanged) messages += auth.updateName(trimmedName)
             state.update { it.copy(message = messages.joinToString(" ")) }
         }
     }

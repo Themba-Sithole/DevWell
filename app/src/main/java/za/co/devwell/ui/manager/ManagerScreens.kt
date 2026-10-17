@@ -218,6 +218,134 @@ private fun FeedbackCard(error: String?, message: String?, onDismiss: () -> Unit
     }
 }
 
+/**
+ * Everything a manager can see about their team: the anonymisation banner, the well-being score,
+ * the workload/after-hours/participants stats, the chart and the anonymity confirmation.
+ *
+ * This exact composable backs the manager dashboard *and* the member-facing
+ * "What my manager sees" preview, so the preview can never drift away from the real view.
+ */
+@Composable
+internal fun ManagerTeamInsights(aggregate: TeamAggregate?) {
+    val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
+    val bars = aggregate?.let { teamChartBars(it) }
+    Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth()
+                .background(AccentSurface, RoundedCornerShape(12.dp))
+                .border(1.dp, TrackGreen, RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.Groups, null, Modifier.size(16.dp), tint = AccentGreen)
+            Text(
+                "All data is anonymised. Individual responses are never visible.",
+                style = MaterialTheme.typography.bodySmall,
+                color = AccentGreen,
+            )
+        }
+        if (aggregate == null) {
+            DevWellCard { Text("No team data available yet.", color = InkMuted) }
+        } else if (safe == null) {
+            DevWellCard {
+                Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Team charts stay hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
+                        "distinct participants. Current participants: ${aggregate.responseCount}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+            }
+        } else {
+            val wellbeing = wellbeingDisplay(safe.averageWellbeing)
+            DevWellCard {
+                Text(
+                    "Team well-being score",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                wellbeing.score,
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = DevGreen,
+                            )
+                            if (wellbeing.ringFraction != null) {
+                                Text(
+                                    "/5",
+                                    Modifier.padding(bottom = 4.dp, start = 4.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = InkMuted,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Chip(wellbeing.band, skin = wellbeing.skin)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "${safe.responseCount} anonymous participants this period",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    ScoreRing(
+                        fraction = wellbeing.ringFraction,
+                        modifier = Modifier.size(84.dp),
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MiniStat(
+                    value = workloadLabel(safe.averageWorkload),
+                    label = "Avg. workload",
+                    modifier = Modifier.weight(1f),
+                )
+                MiniStat(
+                    value = safe.averageAfterHoursMinutes?.let { "%.1f hrs".format(it / 60.0) } ?: "-",
+                    label = "After-hours",
+                    modifier = Modifier.weight(1f),
+                )
+                MiniStat(
+                    value = safe.responseCount.toString(),
+                    label = "Participants",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (!bars.isNullOrEmpty()) {
+                TeamBarChart(bars)
+            }
+            DevWellCard(containerColor = Color.White, borderColor = TrackGreen) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Outlined.Groups, null, Modifier.size(20.dp), tint = AccentGreen)
+                    Column {
+                        Text(
+                            "Anonymity protected",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Ink,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Team insights are shown because ${safe.responseCount} distinct participants " +
+                                "meet the minimum threshold of ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES}.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ManagerHomeScreen(
     aggregate: TeamAggregate?,
@@ -226,8 +354,6 @@ fun ManagerHomeScreen(
     onProfile: () -> Unit = {},
     managerName: String = "",
 ) {
-    val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
-    val bars = aggregate?.let { teamChartBars(it) }
     val firstName = managerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
 
     LazyColumn(
@@ -250,124 +376,7 @@ fun ManagerHomeScreen(
             }
         }
         item {
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(AccentSurface, RoundedCornerShape(12.dp))
-                    .border(1.dp, TrackGreen, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Outlined.Groups, null, Modifier.size(16.dp), tint = AccentGreen)
-                Text(
-                    "All data is anonymised. Individual responses are never visible.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AccentGreen,
-                )
-            }
-        }
-        if (aggregate == null) {
-            item { DevWellCard { Text("No team data available yet.", color = InkMuted) } }
-        } else if (safe == null) {
-            item {
-                DevWellCard {
-                    Text("Not enough participants", style = MaterialTheme.typography.titleMedium, color = Ink)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Team charts stay hidden until at least ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                            "distinct participants. Current participants: ${aggregate.responseCount}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted,
-                    )
-                }
-            }
-        } else {
-            item {
-                val wellbeing = wellbeingDisplay(safe.averageWellbeing)
-                DevWellCard {
-                    Text(
-                        "Team well-being score",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(
-                                    wellbeing.score,
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    color = DevGreen,
-                                )
-                                if (wellbeing.ringFraction != null) {
-                                    Text(
-                                        "/5",
-                                        Modifier.padding(bottom = 4.dp, start = 4.dp),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = InkMuted,
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Chip(wellbeing.band, skin = wellbeing.skin)
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                "${safe.responseCount} anonymous participants this period",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = InkMuted,
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        ScoreRing(
-                            fraction = wellbeing.ringFraction,
-                            modifier = Modifier.size(84.dp),
-                        )
-                    }
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MiniStat(
-                        value = workloadLabel(safe.averageWorkload),
-                        label = "Avg. workload",
-                        modifier = Modifier.weight(1f),
-                    )
-                    MiniStat(
-                        value = safe.averageAfterHoursMinutes?.let { "%.1f hrs".format(it / 60.0) } ?: "-",
-                        label = "After-hours",
-                        modifier = Modifier.weight(1f),
-                    )
-                    MiniStat(
-                        value = safe.responseCount.toString(),
-                        label = "Participants",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            if (!bars.isNullOrEmpty()) {
-                item { TeamBarChart(bars) }
-            }
-            item {
-                DevWellCard(containerColor = Color.White, borderColor = TrackGreen) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                        Icon(Icons.Outlined.Groups, null, Modifier.size(20.dp), tint = AccentGreen)
-                        Column {
-                            Text(
-                                "Anonymity protected",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = Ink,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "Team insights are shown because ${safe.responseCount} distinct participants " +
-                                    "meet the minimum threshold of ${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES}.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = InkMuted,
-                            )
-                        }
-                    }
-                }
-            }
+            ManagerTeamInsights(aggregate)
         }
         item {
             DevWellButton(
