@@ -19,4 +19,13 @@ class MemberCountLabelTest {
     @Test fun positiveCountIsShown() {
         assertEquals("8 members", memberCountLabel(8))
     }
+
+    @Test fun knownZeroShowsNoMembers() {
+        assertEquals("No members yet", memberCountLabel(0, known = true))
+    }
+
+    @Test fun knownPositiveIsShown() {
+        assertEquals("1 member", memberCountLabel(1, known = true))
+        assertEquals("3 members", memberCountLabel(3, known = true))
+    }
 }

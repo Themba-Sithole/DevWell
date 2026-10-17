@@ -213,14 +213,36 @@ private data class CheckInRow(
     )
 }
 
+// No default values on purpose: the serializer skips properties that equal
+// their default, so every field must be written explicitly.
 @Serializable
-private data class NewCheckInRow(
-    @SerialName("user_id") val userId: String,
-    val responses: CheckInDraft,
+private data class CheckInResponsesOut(
+    val wellbeing: Int,
+    val workload: Int,
+    val energy: Int,
+    val focus: Int,
+    val afterHoursMinutes: Int,
+    val note: String,
+)
+
+private fun CheckInDraft.toOut() = CheckInResponsesOut(
+    wellbeing = wellbeing,
+    workload = workload,
+    energy = energy,
+    focus = focus,
+    afterHoursMinutes = afterHoursMinutes,
+    note = note,
 )
 
 @Serializable
-private data class CheckInPatch(val responses: CheckInDraft)
+private data class NewCheckInRow(
+    @SerialName("user_id") val userId: String,
+    val responses: CheckInResponsesOut,
+)
+
+@Serializable
+private data class CheckInPatch(val responses: CheckInResponsesOut)
+
 
 class SupabaseWellbeingRepository(
     private val client: SupabaseClient?,
@@ -266,9 +288,9 @@ class SupabaseWellbeingRepository(
             ?: error("Please sign in again.")
         val existing = TrendsAnalysis.todayCheckIn(items.value)
         if (existing == null) {
-            supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft))
+            supabase.from("check_in").insert(NewCheckInRow(userId = userId, responses = draft.toOut()))
         } else {
-            supabase.from("check_in").update(CheckInPatch(responses = draft)) {
+            supabase.from("check_in").update(CheckInPatch(responses = draft.toOut())) {
                 filter { eq("id", existing.id) }
             }
         }
