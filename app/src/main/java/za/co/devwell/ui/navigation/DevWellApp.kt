@@ -61,12 +61,15 @@ import za.co.devwell.ui.manager.ManagerInsightsScreen
 import za.co.devwell.ui.manager.ManagerTeamScreen
 import za.co.devwell.ui.manager.TeamSettingsRoute
 import za.co.devwell.ui.projects.ProjectsScreen
+import za.co.devwell.ui.settings.AccountSettingsScreen
 import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.ExercisesScreen
+import za.co.devwell.ui.settings.HelpAboutScreen
 import za.co.devwell.ui.settings.NotificationsScreen
-import za.co.devwell.ui.settings.PrivacySettingsScreen
 import za.co.devwell.ui.settings.ProfileScreen
+import za.co.devwell.ui.settings.SettingsScreen
 import za.co.devwell.ui.settings.WellbeingTipsScreen
+import za.co.devwell.ui.settings.WhatMyManagerSeesScreen
 import za.co.devwell.viewmodel.DevWellViewModel
 import za.co.devwell.viewmodel.ManagerViewModel
 import za.co.devwell.viewmodel.ManagerViewModelFactory
@@ -114,7 +117,9 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
                 val activeUser = remember(target) { state.user }
                 if (activeUser != null) {
                     key(activeUser.id, activeUser.role, state.preview) {
-                        RoleApp(viewModel, activeUser, authViewModel::signOut, state.preview)
+                        // activeUser only pins the outgoing user so sign-out cannot tear
+                        // down the graph mid-animation; state.user tracks live profile edits.
+                        RoleApp(viewModel, state.user ?: activeUser, authViewModel, state.preview)
                     }
                 }
             }
@@ -122,8 +127,14 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
     }
 }
 @Composable
-private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: () -> Unit, preview: Boolean) {
-
+private fun RoleApp(
+    viewModel: DevWellViewModel,
+    user: DevWellUser,
+    authViewModel: AuthViewModel,
+    preview: Boolean,
+) {
+    val onSignOut = authViewModel::signOut
+    val account by authViewModel.ui.collectAsStateWithLifecycle()
     val checkIns by viewModel.checkIns.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val aggregate by viewModel.teamAggregate.collectAsStateWithLifecycle()
@@ -251,7 +262,6 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onCheckIn = {
                         navController.navigate(Routes.CHECK_IN) { launchSingleTop = true }
                     },
-                    onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
                     onTrends = { navController.navigate(Routes.TRENDS) },
                     onInsights = { navController.navigate(Routes.INSIGHTS) },
                     onTeamOverview = { navController.navigate(Routes.TEAM_OVERVIEW) },
@@ -304,9 +314,6 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     onDeleteTask = viewModel::deleteTask,
                 )
             }
-            composable(Routes.PRIVACY_PREVIEW) {
-                PrivacyPreviewScreen(aggregate, onBack = { navController.popBackStack() })
-            }
             tabComposable(Routes.AI_ASSISTANT) {
                 val chat by viewModel.aiChat.collectAsStateWithLifecycle()
                 AiAssistantScreen(
@@ -324,7 +331,6 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.ENGINEER,
-                    onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = onSignOut,
                     name = user.name,
                     email = user.email,
@@ -336,7 +342,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                     },
                     onTips = { navController.navigate(Routes.TIPS) },
                     onExercises = { navController.navigate(Routes.EXERCISES) },
-                    onPrivacySettings = { navController.navigate(Routes.PRIVACY_SETTINGS) },
+                    onSettings = { navController.navigate(Routes.SETTINGS) },
                 )
             }
             }
@@ -371,7 +377,6 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.MANAGER,
-                    onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = onSignOut,
                     name = user.name,
                     email = user.email,
@@ -381,8 +386,7 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         viewModel.updateNotificationPrefs(updated)
                         NotificationScheduler.applyPreferences(context, updated)
                     },
-                    onPrivacySettings = { navController.navigate(Routes.PRIVACY_SETTINGS) },
-                    onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
+                    onSettings = { navController.navigate(Routes.SETTINGS) },
                 )
             }
 
@@ -406,7 +410,6 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                 val context = LocalContext.current
                 ProfileScreen(
                     role = UserRole.ADMIN,
-                    onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                     onSignOut = onSignOut,
                     name = user.name,
                     email = user.email,
@@ -416,9 +419,13 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
                         viewModel.updateNotificationPrefs(updated)
                         NotificationScheduler.applyPreferences(context, updated)
                     },
-                    onPrivacySettings = { navController.navigate(Routes.PRIVACY_SETTINGS) },
+                    onSettings = { navController.navigate(Routes.SETTINGS) },
                 )
             }
+            }
+            // Shared: the manager preview is reachable from any role's settings.
+            composable(Routes.PRIVACY_PREVIEW) {
+                PrivacyPreviewScreen(aggregate, onBack = { navController.popBackStack() })
             }
             composable(Routes.NOTIFICATIONS) {
                 val context = LocalContext.current
@@ -437,11 +444,40 @@ private fun RoleApp(viewModel: DevWellViewModel, user: DevWellUser, onSignOut: (
             composable(Routes.EXERCISES) {
                 ExercisesScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.PRIVACY_SETTINGS) {
-                PrivacySettingsScreen(
+            composable(Routes.SETTINGS) {
+                SettingsScreen(
+                    role = user.role,
+                    name = user.name,
+                    email = user.email,
+                    onAccountProfile = { navController.navigate(Routes.ACCOUNT_SETTINGS) },
+                    onManagerVisibility = { navController.navigate(Routes.MANAGER_VISIBILITY) },
+                    onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                    onHelpAbout = { navController.navigate(Routes.HELP_ABOUT) },
+                    onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.ACCOUNT_SETTINGS) {
+                AccountSettingsScreen(
+                    name = user.name,
+                    email = user.email,
+                    busy = account.busy,
+                    error = account.error,
+                    message = account.message,
+                    onSaveProfile = authViewModel::updateProfileDetails,
+                    onChangePassword = authViewModel::updatePassword,
+                    onDismissFeedback = authViewModel::clearFeedback,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.MANAGER_VISIBILITY) {
+                WhatMyManagerSeesScreen(
                     onBack = { navController.popBackStack() },
                     onManagerPreview = { navController.navigate(Routes.PRIVACY_PREVIEW) },
                 )
+            }
+            composable(Routes.HELP_ABOUT) {
+                HelpAboutScreen(onBack = { navController.popBackStack() })
             }
 
         }

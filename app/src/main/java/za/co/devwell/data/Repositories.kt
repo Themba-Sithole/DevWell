@@ -35,6 +35,12 @@ interface AuthRepository {
     suspend fun restoreSession() {}
     suspend fun refreshProfile() {}
     suspend fun signUp(name: String, email: String, password: String): String = error("Registration is unavailable")
+    /** Updates the signed-in user's display name. Returns a confirmation message. */
+    suspend fun updateName(name: String): String = error("Editing your profile is unavailable")
+    /** Starts an email change. The new address applies once the confirmation link is opened. */
+    suspend fun updateEmail(email: String): String = error("Changing your email is unavailable")
+    /** Replaces the signed-in account's password. Returns a confirmation message. */
+    suspend fun updatePassword(password: String): String = error("Changing your password is unavailable")
     suspend fun demoLogin(role: UserRole)
     suspend fun signIn(email: String, password: String): Result<DevWellUser>
     suspend fun signOut()
@@ -136,6 +142,18 @@ class MockAuthRepository : AuthRepository {
     override suspend fun signOut() {
         user.value = null
     }
+
+    override suspend fun updateName(name: String): String {
+        user.value = user.value?.copy(name = name.trim())
+        return "Your name has been updated."
+    }
+
+    override suspend fun updateEmail(email: String): String {
+        user.value = user.value?.copy(email = email.trim())
+        return "Your email has been updated."
+    }
+
+    override suspend fun updatePassword(password: String): String = "Your password has been updated."
 }
 
 class MockOnboardingRepository : OnboardingRepository {

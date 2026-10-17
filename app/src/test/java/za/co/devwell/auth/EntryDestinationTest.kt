@@ -54,4 +54,14 @@ class EntryDestinationTest {
         assertNotNull(registrationValidation("Alex", "a@b.com", "password123", "different"))
         assertNull(registrationValidation("Alex", "a@b.com", "password123", "password123"))
     }
+    @Test fun accountEditsReuseTheSameRules() {
+        assertNotNull(emailValidation("wrong"))
+        assertNull(emailValidation(" a@b.com "))
+        assertNotNull(nameValidation("A"))
+        assertNull(nameValidation("Alex"))
+        assertNotNull(passwordChangeValidation("", ""))
+        assertNotNull(passwordChangeValidation("short", "short"))
+        assertNotNull(passwordChangeValidation("password123", "different"))
+        assertNull(passwordChangeValidation("password123", "password123"))
+    }
 }
