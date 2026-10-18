@@ -41,11 +41,13 @@ Member 1 already submits join requests and refreshes `public.user` after submiss
 and when Refresh status is tapped. The directory is intentionally empty until real
 company/team names are available. No invented manager/admin accounts were left behind.
 
-Member 5 must replace `MockManagerRepository` with live approval calls. Other members'
-check-ins, projects, history and notifications still use sample repositories; their
-backend features are outside this Member 1 onboarding implementation.
+The Android app now uses `SupabaseManagerRepository` for manager approvals and team
+settings. Check-ins and projects also have Supabase repositories. Notification
+preferences still use `MockNotificationRepository`, despite a live
+`notification_preference` table; the Android setting does not persist across app
+restarts yet.
 
-## Member 6 admin dashboard (not deployed)
+## Admin dashboard and production schema state
 
 The local `admin-dashboard` Edge Function lists account identity, role, status,
 team display name and aggregate platform counts. It never returns check-in answers,
@@ -56,18 +58,25 @@ is verified and forwarded to Postgres; no service-role key is required. The migr
 also makes active status a database requirement for project/task access, so an already
 signed-in suspended account is blocked without waiting for the Android UI to refresh.
 
-This migration and function have not been applied to the hosted Supabase project.
-First validate them against a disposable local/development database and review the
-target project's migration history. After approval, deploy the database migration
-through the normal migration workflow and deploy only this function with:
+The live project currently reports `admin-dashboard` ACTIVE (version 5) and
+`admin-create-user` ACTIVE (version 1). The `admin-dashboard` source and its migration
+are checked in; the `admin-create-user` source is not present in this repository.
+Do not redeploy or change either live function until the deployed implementation is
+reconciled with checked-in source.
 
-```text
-supabase functions deploy admin-dashboard --project-ref whtsjwiqcesngltfghyb --use-api
-```
+The live database also contains `check_in`, `notification_preference`, and company/team
+admin CRUD RPCs. Its migration history has versions `20261016125816`,
+`20261016130554`, and `20261016132319` that are absent from `supabase/migrations`.
+The migration files for those live objects must be recovered or reconstructed and
+reviewed before any production migration push. The local `check_in` table/RLS is now
+defined by `20261018135000_member6_active_check_in_access.sql`; that new migration has
+not been deployed. It also blocks suspended accounts with still-valid Auth sessions
+from reading, inserting, or updating their check-ins.
 
-Validate locally with `tests/admin_dashboard.sql` and the Deno test/check commands
-below. The SQL test is transactional and expects the migrations to be applied; run it
-with a trusted database role in a development database, never on production.
+The Android admin screen currently lists account identities and supports suspend /
+reactivate. Company/team CRUD and temporary credential creation are not wired into the
+screen. Validate database changes only on a disposable/local database; the transactional
+SQL tests must not be run against production.
 
 ## AI assistant
 
