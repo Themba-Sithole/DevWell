@@ -614,6 +614,8 @@ fun TeamSettingsScreen(
         mutableDoubleStateOf(team.lowWellbeingThreshold?.takeIf { it in TeamSettingsRules.THRESHOLD_RANGE } ?: 2.0)
     }
     val nameTooLong = teamNameTooLong(name, team.name)
+    // Called from input callbacks only (not on recomposition): editing hides an old error or "saved" message.
+    fun edited() { if (error != null || message != null) onDismissFeedback() }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -627,7 +629,7 @@ fun TeamSettingsScreen(
             DevWellCard {
                 SectionLabel("General")
                 Spacer(Modifier.height(12.dp))
-                DevWellTextField(name, { name = it }, label = "Team name", enabled = !saving, isError = nameTooLong)
+                DevWellTextField(name, { edited(); name = it }, label = "Team name", enabled = !saving, isError = nameTooLong)
                 Text(
                     nameCounterLabel(name),
                     Modifier.fillMaxWidth().padding(top = 4.dp, end = 4.dp),
@@ -636,7 +638,13 @@ fun TeamSettingsScreen(
                     textAlign = TextAlign.End,
                 )
                 Spacer(Modifier.height(10.dp))
-                DevWellTextField(timezone, { timezone = it }, label = "Time zone", enabled = !saving)
+                DevWellTextField(timezone, { edited(); timezone = it }, label = "Time zone", enabled = !saving)
+                Text(
+                    "Saved for your team. Not used by reminders.",
+                    Modifier.padding(top = 4.dp, start = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
             }
         }
         item {
@@ -648,9 +656,15 @@ fun TeamSettingsScreen(
                         CadenceButton(
                             cadenceLabel(option), selected = cadence == option,
                             modifier = Modifier.weight(1f),
-                        ) { cadence = option }
+                        ) { edited(); cadence = option }
                     }
                 }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Saved for your team. Reminders do not use this. Each person can still turn reminders off.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
             }
         }
         item {
@@ -668,7 +682,7 @@ fun TeamSettingsScreen(
                 }
                 Slider(
                     value = threshold.toFloat(),
-                    onValueChange = { threshold = snapThreshold(it) },
+                    onValueChange = { edited(); threshold = snapThreshold(it) },
                     valueRange = 1f..4f,
                     steps = 5,   // 1.0, 1.5, ... 4.0 = 7 stops, 5 between the ends
                     enabled = !saving,

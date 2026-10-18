@@ -96,6 +96,16 @@ class ManagerViewModelTest {
         assertEquals("Team settings saved.", vm.ui.value.message)
     }
 
+    @Test fun savingTeamSettingsTrimsTimezone() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.updateTeamSettings(fake.team.value!!.copy(timezone = "  Europe/London  ")); runCurrent()
+
+        assertEquals(1, fake.updateCalls)
+        assertEquals("Europe/London", fake.team.value?.timezone)
+    }
+
     @Test fun failedSaveShowsErrorAndClearsSaving() = runTest(dispatcher) {
         val fake = FakeManager(); fake.fail = true
         val vm = model(fake); runCurrent()
