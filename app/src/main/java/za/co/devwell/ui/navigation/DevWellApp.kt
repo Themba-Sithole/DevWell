@@ -278,14 +278,27 @@ private fun RoleApp(
             }
                 composable(Routes.CHECK_IN) {
                     val checkInState by viewModel.checkInSaveState.collectAsStateWithLifecycle()
+                    val context = LocalContext.current
 
                     LaunchedEffect(checkInState) {
-                        if (checkInState is za.co.devwell.viewmodel.SaveState.Success) {
-                            navController.navigate(Routes.TRENDS) {
-                                popUpTo(Routes.ENGINEER_HOME) { inclusive = false }
-                                launchSingleTop = true
+                        when (checkInState) {
+                            is za.co.devwell.viewmodel.SaveState.Success -> {
+                                navController.navigate(Routes.TRENDS) {
+                                    popUpTo(Routes.ENGINEER_HOME) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                                viewModel.resetCheckInSaveState()
                             }
-                            viewModel.resetCheckInSaveState()
+                            is za.co.devwell.viewmodel.SaveState.Queued -> {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Saved on your phone. It will upload when you're back online.",
+                                    android.widget.Toast.LENGTH_LONG,
+                                ).show()
+                                navController.popBackStack(Routes.ENGINEER_HOME, false)
+                                viewModel.resetCheckInSaveState()
+                            }
+                            else -> Unit
                         }
                     }
 

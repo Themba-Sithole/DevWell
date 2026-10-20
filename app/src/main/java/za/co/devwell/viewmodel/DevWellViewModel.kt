@@ -10,12 +10,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import za.co.devwell.data.AppContainer
 import za.co.devwell.model.*
+import za.co.devwell.data.offline.CheckInQueuedException
 
 /** Member 2 — tracks the outcome of saving a check-in (Phase 4). */
 sealed class SaveState {
     object Idle : SaveState()
     object Loading : SaveState()
     object Success : SaveState()
+
+    object Queued : SaveState()
     data class Error(val message: String) : SaveState()
 }
 
@@ -95,6 +98,8 @@ class DevWellViewModel : ViewModel() {
         try {
             AppContainer.wellbeing.saveCheckIn(draft)
             _checkInSaveState.value = SaveState.Success
+        } catch (e: CheckInQueuedException) {
+            _checkInSaveState.value = SaveState.Queued
         } catch (e: Exception) {
             _checkInSaveState.value = SaveState.Error(
                 e.message ?: "Couldn't save your check-in. Check your connection and try again."
