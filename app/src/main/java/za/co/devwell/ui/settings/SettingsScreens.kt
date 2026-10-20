@@ -240,7 +240,7 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = Icons.Outlined.Settings,
                         title = "Team settings",
-                        subtitle = "Name, timezone and check-in schedule",
+                        subtitle = "Team name and wellbeing alerts",
                         onClick = onTeamSettings,
                     )
                 }
@@ -253,27 +253,30 @@ fun SettingsScreen(
                 )
             }
         }
-        item {
-            DevWellCard(padding = 0.dp) {
-                Column(Modifier.padding(top = 14.dp)) {
-                    SectionLabel("Privacy", Modifier.padding(horizontal = 14.dp))
+        // A manager reviews their team, so "what my manager sees" does not apply to their account.
+        if (role != UserRole.MANAGER) {
+            item {
+                DevWellCard(padding = 0.dp) {
+                    Column(Modifier.padding(top = 14.dp)) {
+                        SectionLabel("Privacy", Modifier.padding(horizontal = 14.dp))
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    SettingsRow(
+                        icon = Icons.Outlined.Shield,
+                        title = "What my manager sees",
+                        subtitle = "What DevWell stores and what it never shares",
+                        onClick = onManagerVisibility,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Managers never see individual check-ins. Team insights require at least " +
+                            "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct participants.",
+                        Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                    )
+                    Spacer(Modifier.height(10.dp))
                 }
-                Spacer(Modifier.height(4.dp))
-                SettingsRow(
-                    icon = Icons.Outlined.Shield,
-                    title = "What my manager sees",
-                    subtitle = "What DevWell stores and what it never shares",
-                    onClick = onManagerVisibility,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Managers never see individual check-ins. Team insights require at least " +
-                        "${PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct participants.",
-                    Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkMuted,
-                )
-                Spacer(Modifier.height(10.dp))
             }
         }
         item {

@@ -66,6 +66,8 @@ import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.ExercisesScreen
 import za.co.devwell.ui.settings.HelpAboutScreen
 import za.co.devwell.ui.settings.NotificationsScreen
+import za.co.devwell.ui.settings.PrivacyPolicyScreen
+import za.co.devwell.ui.settings.TermsOfServiceScreen
 import za.co.devwell.ui.settings.ProfileScreen
 import za.co.devwell.ui.settings.SettingsScreen
 import za.co.devwell.ui.settings.WellbeingTipsScreen
@@ -367,11 +369,11 @@ private fun RoleApp(
             tabComposable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }
             composable(Routes.JOIN_REQUESTS) {
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
-                JoinRequestsRoute(managerViewModel)
+                JoinRequestsRoute(managerViewModel, onBack = { navController.popBackStack() })
             }
             composable(Routes.TEAM_SETTINGS) {
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
-                TeamSettingsRoute(managerViewModel)
+                TeamSettingsRoute(managerViewModel, onBack = { navController.popBackStack() })
             }
             tabComposable(Routes.MANAGER_PROFILE) {
                 val context = LocalContext.current
@@ -477,7 +479,17 @@ private fun RoleApp(
                 )
             }
             composable(Routes.HELP_ABOUT) {
-                HelpAboutScreen(onBack = { navController.popBackStack() })
+                HelpAboutScreen(
+                    onBack = { navController.popBackStack() },
+                    onPrivacyPolicy = { navController.navigate(Routes.PRIVACY_POLICY) },
+                    onTermsOfService = { navController.navigate(Routes.TERMS_OF_SERVICE) },
+                )
+            }
+            composable(Routes.PRIVACY_POLICY) {
+                PrivacyPolicyScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.TERMS_OF_SERVICE) {
+                TermsOfServiceScreen(onBack = { navController.popBackStack() })
             }
 
         }
