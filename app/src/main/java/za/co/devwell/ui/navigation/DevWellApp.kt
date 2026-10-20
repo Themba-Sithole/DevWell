@@ -66,6 +66,8 @@ import za.co.devwell.ui.settings.AiAssistantScreen
 import za.co.devwell.ui.settings.ExercisesScreen
 import za.co.devwell.ui.settings.HelpAboutScreen
 import za.co.devwell.ui.settings.NotificationsScreen
+import za.co.devwell.ui.settings.PrivacyPolicyScreen
+import za.co.devwell.ui.settings.TermsOfServiceScreen
 import za.co.devwell.ui.settings.ProfileScreen
 import za.co.devwell.ui.settings.SettingsScreen
 import za.co.devwell.ui.settings.WellbeingTipsScreen
@@ -139,6 +141,11 @@ private fun RoleApp(
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val aggregate by viewModel.teamAggregate.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
+    val notificationSyncStatus by viewModel.notificationSyncStatus.collectAsStateWithLifecycle()
+    val notificationContext = LocalContext.current
+    LaunchedEffect(user.id, notificationPrefs) {
+        NotificationScheduler.applyPreferences(notificationContext, notificationPrefs)
+    }
     val adminStats by viewModel.adminStats.collectAsStateWithLifecycle()
     val adminUsers by viewModel.adminUsers.collectAsStateWithLifecycle()
     val adminLoading by viewModel.adminLoading.collectAsStateWithLifecycle()
@@ -353,6 +360,11 @@ private fun RoleApp(
                         viewModel.updateNotificationPrefs(updated)
                         NotificationScheduler.applyPreferences(context, updated)
                     },
+                    onReminderTimeChange = { time ->
+                        val updated = notificationPrefs.copy(reminderTime = time)
+                        viewModel.updateNotificationPrefs(updated)
+                        NotificationScheduler.applyPreferences(context, updated)
+                    },
                     onTips = { navController.navigate(Routes.TIPS) },
                     onExercises = { navController.navigate(Routes.EXERCISES) },
                     onSettings = { navController.navigate(Routes.SETTINGS) },
@@ -380,11 +392,11 @@ private fun RoleApp(
             tabComposable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }
             composable(Routes.JOIN_REQUESTS) {
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
-                JoinRequestsRoute(managerViewModel)
+                JoinRequestsRoute(managerViewModel, onBack = { navController.popBackStack() })
             }
             composable(Routes.TEAM_SETTINGS) {
                 val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
-                TeamSettingsRoute(managerViewModel)
+                TeamSettingsRoute(managerViewModel, onBack = { navController.popBackStack() })
             }
             tabComposable(Routes.MANAGER_PROFILE) {
                 val context = LocalContext.current
@@ -396,6 +408,11 @@ private fun RoleApp(
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)
+                        viewModel.updateNotificationPrefs(updated)
+                        NotificationScheduler.applyPreferences(context, updated)
+                    },
+                    onReminderTimeChange = { time ->
+                        val updated = notificationPrefs.copy(reminderTime = time)
                         viewModel.updateNotificationPrefs(updated)
                         NotificationScheduler.applyPreferences(context, updated)
                     },
@@ -432,6 +449,11 @@ private fun RoleApp(
                         viewModel.updateNotificationPrefs(updated)
                         NotificationScheduler.applyPreferences(context, updated)
                     },
+                    onReminderTimeChange = { time ->
+                        val updated = notificationPrefs.copy(reminderTime = time)
+                        viewModel.updateNotificationPrefs(updated)
+                        NotificationScheduler.applyPreferences(context, updated)
+                    },
                     onSettings = { navController.navigate(Routes.SETTINGS) },
                 )
             }
@@ -444,6 +466,7 @@ private fun RoleApp(
                 val context = LocalContext.current
                 NotificationsScreen(
                     prefs = notificationPrefs,
+                    syncStatus = notificationSyncStatus,
                     onSave = { prefs ->
                         viewModel.updateNotificationPrefs(prefs)
                         NotificationScheduler.applyPreferences(context, prefs)
@@ -490,7 +513,17 @@ private fun RoleApp(
                 )
             }
             composable(Routes.HELP_ABOUT) {
-                HelpAboutScreen(onBack = { navController.popBackStack() })
+                HelpAboutScreen(
+                    onBack = { navController.popBackStack() },
+                    onPrivacyPolicy = { navController.navigate(Routes.PRIVACY_POLICY) },
+                    onTermsOfService = { navController.navigate(Routes.TERMS_OF_SERVICE) },
+                )
+            }
+            composable(Routes.PRIVACY_POLICY) {
+                PrivacyPolicyScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.TERMS_OF_SERVICE) {
+                TermsOfServiceScreen(onBack = { navController.popBackStack() })
             }
 
         }

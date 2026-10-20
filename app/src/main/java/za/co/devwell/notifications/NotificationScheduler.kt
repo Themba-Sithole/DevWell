@@ -2,7 +2,9 @@ package za.co.devwell.notifications
 
 import android.content.Context
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import za.co.devwell.model.NotificationPreferences
@@ -11,11 +13,26 @@ import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 
 private const val DAILY_REMINDER_WORK_NAME = "daily_reminder"
+private const val CUSTOM_REMINDER_WORK_NAME = "custom_reminder"
 
 const val KEY_QUIET_START = "quiet_start"
 const val KEY_QUIET_END = "quiet_end"
+const val KEY_CUSTOM_REMINDER = "custom_reminder"
 
 object NotificationScheduler {
+
+    fun scheduleInMinutes(context: Context, minutes: Int) {
+        require(minutes in 1..10_080) { "Reminder delay must be between 1 minute and 7 days." }
+        val request = OneTimeWorkRequestBuilder<ReminderWorker>()
+            .setInitialDelay(minutes.toLong(), TimeUnit.MINUTES)
+            .setInputData(Data.Builder().putBoolean(KEY_CUSTOM_REMINDER, true).build())
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            CUSTOM_REMINDER_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
+    }
 
     // Call every time preferences are saved
     fun applyPreferences(context: Context, prefs: NotificationPreferences) {

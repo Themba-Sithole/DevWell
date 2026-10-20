@@ -55,6 +55,8 @@ class DevWellViewModel : ViewModel() {
 
     val notificationPrefs: StateFlow<NotificationPreferences> = AppContainer.notifications.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NotificationPreferences())
+    val notificationSyncStatus: StateFlow<String?> = AppContainer.notifications.syncStatus
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val adminStats: StateFlow<Map<String, Int>> = AppContainer.admin.stats
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())

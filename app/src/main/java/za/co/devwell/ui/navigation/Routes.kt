@@ -24,6 +24,8 @@ object Routes {
     const val ACCOUNT_SETTINGS = "settings/account"
     const val MANAGER_VISIBILITY = "settings/manager_visibility"
     const val HELP_ABOUT = "settings/help_about"
+    const val PRIVACY_POLICY = "settings/privacy_policy"
+    const val TERMS_OF_SERVICE = "settings/terms_of_service"
 
     // Manager
     const val MANAGER_HOME = "manager/home"
