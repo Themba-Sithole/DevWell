@@ -16,7 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import za.co.devwell.BuildConfig
 import za.co.devwell.ui.components.*
@@ -408,19 +411,26 @@ private fun openEmail(context: Context, address: String, subject: String, body: 
     }
 }
 
-/** Expandable row used by the FAQ, policies and acknowledgements sections. */
+/**
+ * Expandable row used by the FAQ and acknowledgements sections.
+ * The horizontal padding keeps the label and its expanded body inset from the
+ * card border so the text lines up with the section header above it.
+ */
 @Composable
 private fun ExpandableRow(
     title: String,
     expanded: Boolean,
     onClick: () -> Unit,
     subtitle: String? = null,
+    horizontalPadding: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val rotation by animateFloatAsState(if (expanded) 90f else 0f, label = "chevron")
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+            Modifier.fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = horizontalPadding, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -437,7 +447,9 @@ private fun ExpandableRow(
         }
         if (expanded) {
             Column(
-                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = horizontalPadding)
+                    .padding(bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 content = content,
             )
@@ -448,7 +460,9 @@ private fun ExpandableRow(
 @Composable
 private fun ContactRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+        Modifier.fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -466,17 +480,214 @@ private fun ContactRow(icon: ImageVector, title: String, subtitle: String, onCli
 
 @Composable
 private fun PolicyText(body: String) {
-    body.split("\n\n").forEach { paragraph ->
-        Text(paragraph, style = MaterialTheme.typography.bodySmall, color = InkMuted)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        body.split("\n\n").forEach { paragraph ->
+            Text(paragraph, style = MaterialTheme.typography.bodyMedium, color = Ink)
+        }
+    }
+}
+
+/** A titled card holding one or more policy paragraphs. */
+@Composable
+private fun PolicySection(title: String, vararg paragraphs: String) {
+    DevWellCard {
+        SectionLabel(title)
+        Spacer(Modifier.height(10.dp))
+        PolicyText(paragraphs.joinToString("\n\n"))
+    }
+}
+
+/** Header card shared by the privacy policy and terms of service pages. */
+@Composable
+private fun PolicyHeader(icon: ImageVector, subtitle: String, body: String) {
+    DevWellCard {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconTile(icon, size = 42.dp)
+            Column(Modifier.weight(1f)) {
+                Text(subtitle, style = MaterialTheme.typography.titleMedium, color = Ink)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Last updated 20 October 2026",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        PolicyText(body)
+    }
+}
+
+/** Dedicated privacy policy page, opened from Help & about. */
+@Composable
+fun PrivacyPolicyScreen(onBack: () -> Unit = {}) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { BackHeader("Privacy policy", "What DevWell stores and who can see it", onBack) }
+        item {
+            PolicyHeader(
+                icon = Icons.Outlined.PrivacyTip,
+                subtitle = "Your check-ins stay yours",
+                body = "This policy explains what DevWell stores, who can see it and how you " +
+                    "can have it removed. It applies to every account, whatever your role.",
+            )
+        }
+        item {
+            PolicySection(
+                "What DevWell stores",
+                "Your check-in responses — wellbeing, workload, energy, focus, after-hours " +
+                    "minutes and any note you write — plus your account details (name, email, " +
+                    "company and team) and your notification preferences on this device.",
+                "Your sign-in session is kept in encrypted storage on this phone, so you are " +
+                    "not asked to log in every time you open the app.",
+            )
+        }
+        item {
+            PolicySection(
+                "Who can see it",
+                "Your individual responses and private notes are visible only to you. " +
+                    "Managers, administrators and teammates can never open a single check-in " +
+                    "or a personal trend.",
+                "Managers only see anonymised team summaries, and only once at least " +
+                    "${za.co.devwell.model.PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct " +
+                    "members have checked in. Even then the numbers are averages — never names.",
+            )
+        }
+        item {
+            PolicySection(
+                "How it is protected",
+                "Data is stored in a Supabase project protected by row-level security, so " +
+                    "each account can only read what belongs to it, and traffic is encrypted " +
+                    "in transit.",
+                "DevWell never stores your password. Sign-in is handled directly by Supabase " +
+                    "Auth, and your credentials stay on their secure servers.",
+            )
+        }
+        item {
+            PolicySection(
+                "The AI assistant",
+                "Assistant conversations are sent to the AI provider only after you consent, " +
+                    "and they are not stored by DevWell. Avoid including names or sensitive " +
+                    "details in your messages.",
+            )
+        }
+        item {
+            PolicySection(
+                "Your choices",
+                "Ask your team manager or company administrator to delete your account and " +
+                    "its data at any time. The deletion covers your check-ins, profile and " +
+                    "notification preferences.",
+                "Questions about this policy? Write to $SUPPORT_ADDRESS and we will clarify " +
+                    "what is held for your account.",
+            )
+        }
+        item { PrivacyNotice("DevWell is a wellbeing tool — not a surveillance or performance tracking system.") }
+    }
+}
+
+/** Dedicated terms of service page, opened from Help & about. */
+@Composable
+fun TermsOfServiceScreen(onBack: () -> Unit = {}) {
+    val context = LocalContext.current
+    LazyColumn(
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { BackHeader("Terms of service", "Using DevWell responsibly", onBack) }
+        item {
+            PolicyHeader(
+                icon = Icons.Outlined.Gavel,
+                subtitle = "Using DevWell responsibly",
+                body = "These terms describe what you can expect from DevWell and what we " +
+                    "ask in return. By signing in you agree to them.",
+            )
+        }
+        item {
+            PolicySection(
+                "Not medical advice",
+                "DevWell is a student-built well-being companion. It offers general, " +
+                    "practical guidance only and is not medical, psychological or professional " +
+                    "advice.",
+                "If you are in crisis or struggling, please contact a qualified professional " +
+                    "or your local emergency services straight away.",
+            )
+        }
+        item {
+            PolicySection(
+                "Using the app",
+                "Use DevWell for its intended purpose, keep your sign-in details secure, and " +
+                    "do not attempt to access another member's data or reports.",
+                "Your account belongs to you. If you share a device, sign out when you are " +
+                    "finished so nobody else can open your check-ins.",
+            )
+        }
+        item {
+            PolicySection(
+                "Anonymity in team insights",
+                "Team insights stay hidden until at least " +
+                    "${za.co.devwell.model.PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} distinct " +
+                    "members have checked in. Below that threshold no averages are shown, which " +
+                    "keeps individual responses unidentifiable.",
+                "Managers must not ask members to reveal their check-ins, and aggregate results " +
+                    "are for wellbeing support — never for performance reviews.",
+            )
+        }
+        item {
+            PolicySection(
+                "Accounts and suspension",
+                "Accounts that misuse the service — for example by probing another member's " +
+                    "data or by using DevWell outside its purpose — may be suspended by an " +
+                    "administrator.",
+                "Your manager or company administrator can review join requests, suspend " +
+                    "accounts and remove your data on request.",
+            )
+        }
+        item {
+            PolicySection(
+                "Availability and changes",
+                "DevWell is provided as-is for the duration of the project. Features may " +
+                    "change or the service may stop without notice, and no uptime guarantee is " +
+                    "given.",
+                "These terms are governed by the rules of the academic project they were " +
+                    "built for.",
+            )
+        }
+        item {
+            DevWellCard(padding = 0.dp) {
+                Column(Modifier.padding(top = 14.dp, start = 14.dp, end = 14.dp)) {
+                    SectionLabel("Questions about these terms")
+                }
+                DevWellDivider()
+                ContactRow(
+                    icon = Icons.Outlined.Email,
+                    title = "Email support",
+                    subtitle = SUPPORT_ADDRESS,
+                    onClick = {
+                        openEmail(context, SUPPORT_ADDRESS, "DevWell terms of service question",
+                            emailBody("Hi DevWell team,\n\nAbout the terms of service:"))
+                    },
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+        item { PrivacyNotice("Nothing on this page is tracked or reported — it is here for you.") }
     }
 }
 
 /** Help & About: FAQ, support contacts, policies and app version. */
 @Composable
-fun HelpAboutScreen(onBack: () -> Unit = {}) {
+fun HelpAboutScreen(
+    onBack: () -> Unit = {},
+    onPrivacyPolicy: () -> Unit = {},
+    onTermsOfService: () -> Unit = {},
+) {
     val context = LocalContext.current
     var openFaq by rememberSaveable { mutableIntStateOf(-1) }
-    var openPolicy by rememberSaveable { mutableIntStateOf(-1) }
     var acknowledgementsOpen by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
@@ -537,48 +748,20 @@ fun HelpAboutScreen(onBack: () -> Unit = {}) {
                 Column(Modifier.padding(top = 14.dp, start = 14.dp, end = 14.dp)) {
                     SectionLabel("Policies")
                 }
-                ExpandableRow(
+                DevWellDivider()
+                ContactRow(
+                    icon = Icons.Outlined.PrivacyTip,
                     title = "Privacy policy",
                     subtitle = "What DevWell stores and who can see it",
-                    expanded = openPolicy == 0,
-                    onClick = { openPolicy = if (openPolicy == 0) -1 else 0 },
-                ) {
-                    PolicyText(
-                        "DevWell stores your check-in responses (wellbeing, workload, energy, " +
-                            "focus, after-hours minutes and any note you write), your account " +
-                            "details (name, email, company and team) and your notification " +
-                            "preferences on this device.\n\n" +
-                            "Managers only see anonymised team summaries, and only once at least " +
-                            "${za.co.devwell.model.PrivacyPolicy.MINIMUM_ANONYMOUS_RESPONSES} " +
-                            "distinct members have checked in. Individual responses, notes and " +
-                            "personal trends are never shared.\n\n" +
-                            "Data is stored in a Supabase project protected by row-level " +
-                            "security. Ask your administrator to delete your account and its " +
-                            "data at any time. Assistant conversations are sent to the AI " +
-                            "provider only after you consent, and are not stored by DevWell.",
-                    )
-                }
+                    onClick = onPrivacyPolicy,
+                )
                 DevWellDivider()
-                ExpandableRow(
+                ContactRow(
+                    icon = Icons.Outlined.Gavel,
                     title = "Terms of service",
                     subtitle = "Using DevWell responsibly",
-                    expanded = openPolicy == 1,
-                    onClick = { openPolicy = if (openPolicy == 1) -1 else 1 },
-                ) {
-                    PolicyText(
-                        "DevWell is a student-built well-being companion. It offers general " +
-                            "guidance only and is not medical, psychological or professional " +
-                            "advice. If you are in crisis, contact a qualified professional or " +
-                            "your local emergency services.\n\n" +
-                            "Use DevWell for its intended purpose, keep your sign-in details " +
-                            "secure, and do not attempt to access another member's data. " +
-                            "Accounts that misuse the service may be suspended by an " +
-                            "administrator.\n\n" +
-                            "Team insights stay hidden until enough members check in to protect " +
-                            "anonymity. The service is provided as-is for the duration of the " +
-                            "project and may change or stop without notice.",
-                    )
-                }
+                    onClick = onTermsOfService,
+                )
                 Spacer(Modifier.height(6.dp))
             }
         }

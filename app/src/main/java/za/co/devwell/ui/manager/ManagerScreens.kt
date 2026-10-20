@@ -62,13 +62,6 @@ internal fun memberCountLabel(count: Int, known: Boolean = false): String = when
     else -> "$count members"
 }
 
-/** Button text for each stored cadence. Stored values come from TeamSettingsRules.CADENCES. */
-internal fun cadenceLabel(cadence: String): String = when (cadence) {
-    "Daily" -> "Every day"
-    "Weekly" -> "Once a week"
-    else -> cadence
-}
-
 /** Rounds a slider position to the nearest 0.5 inside the allowed threshold range. */
 internal fun snapThreshold(raw: Float): Double =
     ((raw * 2).roundToInt() / 2.0).coerceIn(TeamSettingsRules.THRESHOLD_RANGE)
@@ -482,13 +475,14 @@ fun JoinRequestsScreen(
     error: String? = null,
     message: String? = null,
     onDismissFeedback: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val busy = reviewingId != null
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { PageTitle("Join requests", "Engineers requesting access to your teams") }
+        item { BackHeader("Join requests", "Engineers requesting access to your teams", onBack) }
         if (error != null || message != null) {
             item { FeedbackCard(error, message, onDismissFeedback) }
         }
@@ -596,20 +590,17 @@ fun TeamSettingsScreen(
     error: String? = null,
     message: String? = null,
     onDismissFeedback: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     if (team == null) {
-        Column(Modifier.fillMaxSize().padding(20.dp)) {
-            PageTitle("Team settings")
+        Column(Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding()) {
+            BackHeader("Team settings", null, onBack)
+            Spacer(Modifier.height(12.dp))
             Text("No managed team loaded.", color = InkMuted)
         }
         return
     }
     var name by remember(team.id) { mutableStateOf(team.name) }
-    var timezone by remember(team.id) { mutableStateOf(team.timezone.orEmpty()) }
-    // Start from the stored value only if it is still valid, so the controls never show an impossible state.
-    var cadence by remember(team.id) {
-        mutableStateOf(team.checkInCadence?.takeIf { it in TeamSettingsRules.CADENCES } ?: "Daily")
-    }
     var threshold by remember(team.id) {
         mutableDoubleStateOf(team.lowWellbeingThreshold?.takeIf { it in TeamSettingsRules.THRESHOLD_RANGE } ?: 2.0)
     }
@@ -618,10 +609,10 @@ fun TeamSettingsScreen(
     fun edited() { if (error != null || message != null) onDismissFeedback() }
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { PageTitle("Team settings", team.name) }
+        item { BackHeader("Team settings", team.name, onBack) }
         if (error != null || message != null) {
             item { FeedbackCard(error, message, onDismissFeedback) }
         }
@@ -636,34 +627,6 @@ fun TeamSettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = if (nameTooLong) RedText else InkMuted,
                     textAlign = TextAlign.End,
-                )
-                Spacer(Modifier.height(10.dp))
-                DevWellTextField(timezone, { edited(); timezone = it }, label = "Time zone", enabled = !saving)
-                Text(
-                    "Saved for your team. Not used by reminders.",
-                    Modifier.padding(top = 4.dp, start = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkMuted,
-                )
-            }
-        }
-        item {
-            DevWellCard {
-                SectionLabel("Check-in schedule")
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TeamSettingsRules.CADENCES.forEach { option ->
-                        CadenceButton(
-                            cadenceLabel(option), selected = cadence == option,
-                            modifier = Modifier.weight(1f),
-                        ) { edited(); cadence = option }
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Saved for your team. Reminders do not use this. Each person can still turn reminders off.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkMuted,
                 )
             }
         }
@@ -740,11 +703,14 @@ fun TeamSettingsScreen(
             DevWellButton(
                 if (saving) "Saving..." else "Save changes",
                 onClick = {
+                    // Time zone and cadence are no longer editable here, so the stored values
+                    // are sent back unchanged (with the same defaults the backend expects).
                     onSave(
                         team.copy(
                             name = name,
-                            timezone = timezone,
-                            checkInCadence = cadence,
+                            timezone = team.timezone?.takeIf { it.isNotBlank() } ?: DEFAULT_TIMEZONE,
+                            checkInCadence = team.checkInCadence?.takeIf { it in TeamSettingsRules.CADENCES }
+                                ?: DEFAULT_CADENCE,
                             lowWellbeingThreshold = threshold,
                         )
                     )
@@ -756,33 +722,13 @@ fun TeamSettingsScreen(
     }
 }
 
-@Composable
-private fun CadenceButton(
-    text: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) DevGreen else CardWhite,
-        border = BorderStroke(1.dp, if (selected) DevGreen else BorderGreen),
-    ) {
-        Text(
-            text,
-            Modifier.fillMaxWidth().padding(vertical = 11.dp),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) Color.White else InkMuted,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
+/** Fallbacks for teams loaded before the settings columns had a value. */
+private const val DEFAULT_TIMEZONE = "Africa/Johannesburg"
+private const val DEFAULT_CADENCE = "Daily"
 
 /** Connects the join-requests screen to its ViewModel. Clears old feedback on entry. */
 @Composable
-fun JoinRequestsRoute(viewModel: ManagerViewModel) {
+fun JoinRequestsRoute(viewModel: ManagerViewModel, onBack: () -> Unit = {}) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.clearFeedback() }
     JoinRequestsScreen(
@@ -792,11 +738,12 @@ fun JoinRequestsRoute(viewModel: ManagerViewModel) {
         error = state.error,
         message = state.message,
         onDismissFeedback = viewModel::clearFeedback,
+        onBack = onBack,
     )
 }
 
 @Composable
-fun TeamSettingsRoute(viewModel: ManagerViewModel) {
+fun TeamSettingsRoute(viewModel: ManagerViewModel, onBack: () -> Unit = {}) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.clearFeedback() }
     TeamSettingsScreen(
@@ -806,6 +753,7 @@ fun TeamSettingsRoute(viewModel: ManagerViewModel) {
         error = state.error,
         message = state.message,
         onDismissFeedback = viewModel::clearFeedback,
+        onBack = onBack,
     )
 }
 
