@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -83,6 +84,7 @@ interface ManagerRepository {
 
 interface NotificationRepository {
     val preferences: Flow<NotificationPreferences>
+    val syncStatus: Flow<String?> get() = flowOf(null)
     suspend fun updatePreferences(prefs: NotificationPreferences)
 }
 
@@ -581,13 +583,20 @@ object AppContainer {
     private var adminRepository: AdminRepository = MockAdminRepository()
     private var projectRepository: ProjectRepository = MockProjectRepository()
     private var aiRepository: AiGuidanceRepository = MockAiGuidanceRepository()
+    private var notificationRepository: NotificationRepository = MockNotificationRepository()
 
     fun initialize(context: android.content.Context) {
         if (!::identity.isInitialized) {
+            notificationRepository = PersistentNotificationRepository(context.applicationContext)
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
             val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
             aiRepository = if (client == null) MockAiGuidanceRepository() else SupabaseAiGuidanceRepository(client)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
+            notificationRepository = if (client == null) {
+                PersistentNotificationRepository(context.applicationContext)
+            } else {
+                SupabaseNotificationRepository(client, identity.currentUser, context.applicationContext, scope)
+            }
             wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
             teamInsightsRepo = if (client == null) {
@@ -614,7 +623,7 @@ object AppContainer {
     val teamInsights: TeamInsightsRepository get() = teamInsightsRepo
     val projects: ProjectRepository get() = projectRepository
     val manager: ManagerRepository get() = managerRepo
-    val notifications: NotificationRepository = MockNotificationRepository()
+    val notifications: NotificationRepository get() = notificationRepository
     val ai: AiGuidanceRepository get() = aiRepository
     val admin: AdminRepository get() = adminRepository
 }
