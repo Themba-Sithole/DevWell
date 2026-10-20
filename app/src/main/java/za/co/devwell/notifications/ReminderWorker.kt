@@ -25,19 +25,27 @@ class ReminderWorker(
             if (!granted) return Result.success()
         }
 
+        val isCustomReminder = inputData.getBoolean(KEY_CUSTOM_REMINDER, false)
         val notification = NotificationCompat.Builder(applicationContext, DAILY_REMINDER_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info) // change to our logo later
-            .setContentTitle("Daily check-in")
-            .setContentText("Take a minute for your DevWell check-in.")
+            .setContentTitle(if (isCustomReminder) "Your DevWell reminder" else "Daily check-in")
+            .setContentText(
+                if (isCustomReminder) "You asked to be reminded. Take a minute for your DevWell check-in."
+                else "Take a minute for your DevWell check-in."
+            )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(applicationContext).notify(REMINDER_NOTIFICATION_ID, notification)
+        NotificationManagerCompat.from(applicationContext).notify(
+            if (isCustomReminder) CUSTOM_REMINDER_NOTIFICATION_ID else REMINDER_NOTIFICATION_ID,
+            notification,
+        )
         return Result.success()
     }
 
     companion object {
         const val REMINDER_NOTIFICATION_ID = 1001
+        const val CUSTOM_REMINDER_NOTIFICATION_ID = 1002
     }
 }

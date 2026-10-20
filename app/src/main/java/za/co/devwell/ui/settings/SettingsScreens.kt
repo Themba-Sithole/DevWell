@@ -1,5 +1,6 @@
 package za.co.devwell.ui.settings
 
+import android.app.TimePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import za.co.devwell.model.AiMessage
 import za.co.devwell.model.NotificationPreferences
@@ -58,10 +60,13 @@ fun ProfileScreen(
     email: String = "",
     prefs: NotificationPreferences? = null,
     onToggleDaily: (Boolean) -> Unit = {},
+    onReminderTimeChange: (String) -> Unit = {},
     onTips: () -> Unit = {},
     onExercises: () -> Unit = {},
     onSettings: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val dailyReminderEnabled = prefs?.dailyEnabled ?: true
     Column(
         Modifier
             .fillMaxSize()
@@ -106,10 +111,26 @@ fun ProfileScreen(
             Spacer(Modifier.height(8.dp))
             PrefRow(
                 "Daily check-in reminder",
-                checked = prefs?.dailyEnabled ?: true,
+                checked = dailyReminderEnabled,
                 onCheckedChange = onToggleDaily,
-                subtitle = "9:00 AM",
+                subtitle = "Nudge me at my usual check-in time",
             )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                enabled = dailyReminderEnabled,
+                onClick = {
+                    val time = prefs?.reminderTime ?: "09:00"
+                    val parts = time.split(":")
+                    val hour = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 9
+                    val minute = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+                    TimePickerDialog(context, { _, selectedHour, selectedMinute ->
+                        onReminderTimeChange("%02d:%02d".format(selectedHour, selectedMinute))
+                    }, hour, minute, false).show()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Daily reminder: ${prefs?.reminderTime ?: "09:00"}")
+            }
         }
         if (role == UserRole.ENGINEER) {
             DevWellCard(padding = 0.dp) {
@@ -406,9 +427,9 @@ fun AccountSettingsScreen(
 fun NotificationsScreen(
     prefs: NotificationPreferences,
     onSave: (NotificationPreferences) -> Unit,
+    syncStatus: String? = null,
     onBack: () -> Unit = {},
 ) {
-    var daily by remember(prefs) { mutableStateOf(prefs.dailyEnabled) }
     var checkIn by remember(prefs) { mutableStateOf(prefs.checkInReminders) }
     var teamAlerts by remember(prefs) { mutableStateOf(prefs.teamAlerts) }
     var tipNudges by remember(prefs) { mutableStateOf(prefs.tipNudges) }
@@ -422,7 +443,6 @@ fun NotificationsScreen(
         item { BackHeader("Notification preferences", "Daily reminder, quiet hours and category controls", onBack) }
         item {
             DevWellCard(padding = 4.dp) {
-                PrefRow("Daily check-in reminder", daily, { daily = it }, subtitle = "Nudge me at my usual check-in time")
                 PrefRow("Check-in reminders", checkIn, { checkIn = it }, subtitle = "Remind me when I miss a day")
                 PrefRow("Team alerts", teamAlerts, { teamAlerts = it }, subtitle = "Anonymous team milestone notices")
                 PrefRow("Tip nudges", tipNudges, { tipNudges = it }, subtitle = "Weekly well-being tips")
@@ -449,7 +469,6 @@ fun NotificationsScreen(
                 onClick = {
                     onSave(
                         prefs.copy(
-                            dailyEnabled = daily,
                             checkInReminders = checkIn,
                             teamAlerts = teamAlerts,
                             tipNudges = tipNudges,
@@ -460,6 +479,15 @@ fun NotificationsScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+        syncStatus?.let { status ->
+            item {
+                Text(
+                    status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+            }
         }
     }
 }
