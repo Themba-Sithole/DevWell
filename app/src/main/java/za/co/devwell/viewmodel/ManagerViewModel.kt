@@ -24,8 +24,8 @@ data class ManagerUiState(
 )
 
 /**
- * Client-side rules for team settings. The database only checks the name (1..150 chars),
- * so cadence and threshold are enforced here until they get backend columns.
+ * Client-side rules for team settings. The update_team_settings RPC enforces the same rules;
+ * checking here first gives the manager a clear message without a server round trip.
  */
 object TeamSettingsRules {
     const val NAME_MAX_LENGTH = 60
@@ -91,7 +91,7 @@ class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() 
 
     fun updateTeamSettings(team: Team) {
         if (state.value.savingSettings) return
-        val trimmed = team.copy(name = team.name.trim())
+        val trimmed = team.copy(name = team.name.trim(), timezone = team.timezone?.trim())
         TeamSettingsRules.validate(trimmed, state.value.team?.name)?.let { problem ->
             state.update { it.copy(error = problem, message = null) }
             return
