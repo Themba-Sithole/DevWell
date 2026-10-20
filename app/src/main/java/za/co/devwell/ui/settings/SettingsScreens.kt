@@ -66,6 +66,7 @@ fun ProfileScreen(
     onSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val dailyReminderEnabled = prefs?.dailyEnabled ?: true
     Column(
         Modifier
             .fillMaxSize()
@@ -110,12 +111,13 @@ fun ProfileScreen(
             Spacer(Modifier.height(8.dp))
             PrefRow(
                 "Daily check-in reminder",
-                checked = prefs?.dailyEnabled ?: true,
+                checked = dailyReminderEnabled,
                 onCheckedChange = onToggleDaily,
                 subtitle = "Nudge me at my usual check-in time",
             )
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
+                enabled = dailyReminderEnabled,
                 onClick = {
                     val time = prefs?.reminderTime ?: "09:00"
                     val parts = time.split(":")
