@@ -368,6 +368,7 @@ private fun RoleApp(
                     onTips = { navController.navigate(Routes.TIPS) },
                     onExercises = { navController.navigate(Routes.EXERCISES) },
                     onSettings = { navController.navigate(Routes.SETTINGS) },
+                    onBack = { navController.popBackStack() },
                 )
             }
             }
@@ -424,6 +425,7 @@ private fun RoleApp(
                         NotificationScheduler.applyPreferences(context, updated)
                     },
                     onSettings = { navController.navigate(Routes.SETTINGS) },
+                    onBack = { navController.popBackStack() },
                 )
             }
 
