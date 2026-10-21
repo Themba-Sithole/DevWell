@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -41,9 +42,11 @@ fun EngineerInsightsScreen(checkIns: List<CheckIn>, name: String, onBack: () -> 
     val avgWorkload = checkIns.map { it.values.workload }.average()
     val avgAfterHours = checkIns.map { it.values.afterHoursMinutes }.average()
     var expanded by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -194,11 +197,13 @@ private fun WatchCard(emoji: String, title: String, body: String, amber: Boolean
 @Composable
 fun TeamOverviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
+    val pageScroll = rememberScrollState()
     Column(
         Modifier
             .fillMaxSize()
             .padding(20.dp)
-            .verticalScroll(rememberScrollState())
+            .devWellScrollbar(pageScroll)
+            .verticalScroll(pageScroll)
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

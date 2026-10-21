@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
@@ -369,9 +370,11 @@ fun ManagerHomeScreen(
     val firstName = managerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
     val title = teamName?.trim()?.takeIf { it.isNotEmpty() }
         ?: if (firstName.isEmpty()) "Your team" else "$firstName's Team"
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -499,8 +502,10 @@ fun JoinRequestsScreen(
     onBack: () -> Unit = {},
 ) {
     val busy = reviewingId != null
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Join requests", "Engineers requesting access to your teams", onBack) }
@@ -628,9 +633,11 @@ fun TeamSettingsScreen(
     val nameTooLong = teamNameTooLong(name, team.name)
     // Called from input callbacks only (not on recomposition): editing hides an old error or "saved" message.
     fun edited() { if (error != null || message != null) onDismissFeedback() }
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Team settings", team.name, onBack) }
@@ -787,9 +794,11 @@ fun ManagerTeamScreen(
 ) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
     val bars = aggregate?.let { teamChartBars(it) }
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { PageTitle("Team Data", "Anonymised team insights only") }
@@ -903,8 +912,10 @@ fun ManagerTeamScreen(
 @Composable
 fun ManagerInsightsScreen(aggregate: TeamAggregate?) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { PageTitle("Team Insights", "Supportive patterns from anonymised team data") }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,6 +51,7 @@ import za.co.devwell.ui.components.DevWellDialog
 import za.co.devwell.ui.components.DevWellTextField
 import za.co.devwell.ui.components.PrefRow
 import za.co.devwell.ui.components.SectionLabel
+import za.co.devwell.ui.components.devWellScrollbar
 import za.co.devwell.ui.theme.BorderGreen
 import za.co.devwell.ui.theme.CardWhite
 import za.co.devwell.ui.theme.DevGreen
@@ -112,8 +114,10 @@ fun ProjectsScreen(
     var deletingTask by remember { mutableStateOf<Pair<DevProject, ProjectTask>?>(null) }
 
     Box(Modifier.fillMaxSize()) {
+        val listState = rememberLazyListState()
         LazyColumn(
-            Modifier.fillMaxSize().padding(20.dp),
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {

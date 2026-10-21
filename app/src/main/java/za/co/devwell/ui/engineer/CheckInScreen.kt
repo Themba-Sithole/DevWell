@@ -25,6 +25,7 @@ import za.co.devwell.ui.components.DevWellDivider
 import za.co.devwell.ui.components.DevWellTextField
 import za.co.devwell.ui.components.PrivacyNotice
 import za.co.devwell.ui.components.SegmentedProgress
+import za.co.devwell.ui.components.devWellScrollbar
 import za.co.devwell.ui.theme.*
 
 /**
@@ -86,6 +87,7 @@ fun CheckInScreen(
     var afterHours by rememberSaveable { mutableIntStateOf(initial?.let { afterHoursIndexFor(it.afterHoursMinutes) } ?: NOT_SELECTED) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
     val titles = listOf("Today's wellbeing", "Workload", "Energy and focus", "After-hours work", "Review")
+    val stepScroll = rememberScrollState()
 
     // Steps 1, 2 and 4 need an answer before "Next" is allowed.
     val canProceed = when (step) {
@@ -109,7 +111,7 @@ fun CheckInScreen(
         Spacer(Modifier.height(20.dp))
         Text(titles[step - 1], style = MaterialTheme.typography.headlineMedium, color = Ink)
         Spacer(Modifier.height(16.dp))
-        Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+        Box(Modifier.weight(1f).devWellScrollbar(stepScroll).verticalScroll(stepScroll)) {
             when (step) {
                 1 -> ChoiceStep("How are you feeling today?", WELLBEING_CHOICES, wellbeing) { wellbeing = it }
                 2 -> ChoiceStep("How was your workload yesterday?", WORKLOAD_CHOICES, workload) { workload = it }

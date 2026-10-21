@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import za.co.devwell.model.AccountStatus
 import za.co.devwell.model.CompanyStatus
+import za.co.devwell.ui.components.devWellScrollbar
 import za.co.devwell.viewmodel.AuthUiState
 
 @Composable
@@ -36,6 +37,7 @@ fun OnboardingScreen(state: AuthUiState, onSubmit: (String, String) -> Unit, onR
     var companyId by rememberSaveable(state.user?.id) { mutableStateOf<String?>(null) }
     var teamId by rememberSaveable(state.user?.id) { mutableStateOf<String?>(null) }
     var step by rememberSaveable(state.user?.id) { mutableIntStateOf(1) }
+    val stepScroll = rememberScrollState()
     val company = companies.find { it.id == companyId }
     val teams = state.teams.filter { it.companyId == companyId }
     val team = teams.find { it.id == teamId }
@@ -55,7 +57,7 @@ fun OnboardingScreen(state: AuthUiState, onSubmit: (String, String) -> Unit, onR
                 repeat(3) { index -> Box(Modifier.weight(1f).height(6.dp).background(if (index < step) Color.White else Color(0xFF709174), CircleShape)) }
             }
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f).devWellScrollbar(stepScroll).verticalScroll(stepScroll).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("STEP $step OF 3", style = MaterialTheme.typography.labelMedium, color = AuthMuted)
             Text(when(step) { 1 -> "Which company do you work for?"; 2 -> "Which team are you on?"; else -> "Confirm your details" },
                 style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -144,7 +146,8 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
     val suspended = state.user?.status == AccountStatus.SUSPENDED
     val company = state.companies.find { it.id == state.user?.companyId }?.name
     val team = state.teams.find { it.id == state.user?.teamId }?.name ?: state.user?.teamName
-    Column(Modifier.fillMaxSize().background(AuthBackground).systemBarsPadding().verticalScroll(rememberScrollState()).padding(28.dp),
+    val pageScroll = rememberScrollState()
+    Column(Modifier.fillMaxSize().background(AuthBackground).systemBarsPadding().devWellScrollbar(pageScroll).verticalScroll(pageScroll).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Spacer(Modifier.height(64.dp))
         Surface(shape = CircleShape, color = za.co.devwell.ui.theme.AccentSurface) {

@@ -68,11 +68,13 @@ fun ProfileScreen(
 ) {
     val context = LocalContext.current
     val dailyReminderEnabled = prefs?.dailyEnabled ?: true
+    val pageScroll = rememberScrollState()
     Column(
         Modifier
             .fillMaxSize()
             .padding(20.dp)
-            .verticalScroll(rememberScrollState())
+            .devWellScrollbar(pageScroll)
+            .verticalScroll(pageScroll)
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -243,8 +245,10 @@ fun SettingsScreen(
     onTeamSettings: () -> Unit = {},
     onBack: () -> Unit = {},
 ) {
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Settings", "Account, privacy, notifications and help", onBack) }
@@ -345,9 +349,11 @@ fun AccountSettingsScreen(
     LaunchedEffect(Unit) { onDismissFeedback() }
 
     val profileChanged = nameField.trim() != name || emailField.trim() != email
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Account & profile", "Edit your name, email and password", onBack) }
@@ -443,9 +449,11 @@ fun NotificationsScreen(
     var tipNudges by remember(prefs) { mutableStateOf(prefs.tipNudges) }
     var quietStart by remember(prefs) { mutableStateOf(prefs.quietStart.orEmpty()) }
     var quietEnd by remember(prefs) { mutableStateOf(prefs.quietEnd.orEmpty()) }
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Notification preferences", "Daily reminder, quiet hours and category controls", onBack) }

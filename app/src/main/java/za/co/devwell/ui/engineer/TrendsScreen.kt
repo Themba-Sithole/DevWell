@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -58,9 +59,11 @@ fun TrendsScreen(checkIns: List<CheckIn>, onBack: () -> Unit = {}) {
     val visibleCheckIns = TrendsAnalysis.filter(checkIns, selectedPeriod, today)
     val summary = TrendsAnalysis.summarize(visibleCheckIns)
     val chartCheckIns = TrendsAnalysis.chartEntries(visibleCheckIns)
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Your trends", "Your private check-in history", onBack) }
@@ -319,11 +322,13 @@ private fun GroupedBarChart(
 
 @Composable
 fun PrivacyPreviewScreen(aggregate: TeamAggregate?, onBack: () -> Unit = {}) {
+    val pageScroll = rememberScrollState()
     Column(
         Modifier
             .fillMaxSize()
             .padding(20.dp)
-            .verticalScroll(rememberScrollState())
+            .devWellScrollbar(pageScroll)
+            .verticalScroll(pageScroll)
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
