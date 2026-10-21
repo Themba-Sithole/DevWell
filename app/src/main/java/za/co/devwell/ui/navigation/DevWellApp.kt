@@ -417,6 +417,7 @@ private fun RoleApp(
                         NotificationScheduler.applyPreferences(context, updated)
                     },
                     onSettings = { navController.navigate(Routes.SETTINGS) },
+                    onBack = { navController.popBackStack() },
                 )
             }
 

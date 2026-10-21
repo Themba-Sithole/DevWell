@@ -64,6 +64,7 @@ fun ProfileScreen(
     onTips: () -> Unit = {},
     onExercises: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val dailyReminderEnabled = prefs?.dailyEnabled ?: true
@@ -75,7 +76,11 @@ fun ProfileScreen(
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Profile", style = MaterialTheme.typography.headlineMedium, color = Ink)
+        if (onBack != null) {
+            BackHeader("Profile", onBack = onBack)
+        } else {
+            Text("Profile", style = MaterialTheme.typography.headlineMedium, color = Ink)
+        }
         DevWellCard(padding = 18.dp) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Avatar(name.ifBlank { "?" }.initials(), size = 56.dp)
