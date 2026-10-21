@@ -1,6 +1,35 @@
 # Android verification
 
-Date: 23 September 2026.
+Date: 23 September 2026. Manager registration added and re-verified on 21 October 2026.
+
+## Manager registration verification (21 October 2026)
+
+- 174 JVM unit tests passed, including the new role-picker, manager onboarding, team
+  switch and create-team cases. Android lint completed with 0 errors and 17 warnings.
+- The migration `20261021120000_member1_manager_registration.sql` was applied to a
+  local Supabase stack first. 35 live HTTP checks passed against the local database:
+  the signup role request, the manager's company and first team, the engineer join
+  request, the manager's approval, a second team, and the refusal cases (an engineer
+  cannot create a company or team, an anonymous caller is rejected, a manager cannot
+  create a second company, a duplicate or blank team name is refused, extra body
+  fields are ignored and a suspended manager is refused).
+- The same 31 checks then passed against the live project
+  `whtsjwiqcesngltfghyb`. The live project rate-limits public signups, so the test
+  accounts were created through the admin API; the profile trigger still ran, so the
+  role handling under test was identical.
+- Every account, team and company created by the live checks was removed afterwards.
+  The live database was confirmed to contain no leftover test rows.
+- The debug APK was installed on the emulator and driven against the live project.
+  The signup screen offers the Engineer and Manager cards, the helper text changes with
+  the selection, a manager signs in and lands on the two-step company wizard, the
+  company and first team are created, the dashboard then shows the team name, the Team
+  tab lists the team, a second team can be created with the New team action, and
+  Team settings opens the selected team. Switching teams reloads the roster and the
+  settings of the newly selected team.
+- The live project's public signup endpoint answers 429 Too Many Requests from this
+  network, so a new engineer account could not be created from the app during the
+  check. The engineer's join request and the manager's approval were covered by the
+  HTTP checks above instead.
 
 ## Environment
 

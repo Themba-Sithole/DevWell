@@ -19,7 +19,11 @@ The Gradle wrapper uses 8.14.3; Android Gradle Plugin remains 8.7.3.
 
 ## Member 1
 
-- Email/password login and engineer registration with validation and loading/error states.
+- Email/password login and registration with validation and loading/error states.
+- Registration asks whether the person is joining as an engineer or registering as a
+  manager. An engineer picks the company and team to join and a manager approves the
+  request. A manager creates their own company and first team, then approves the
+  engineers who want to join it, and can add further teams later.
 - Encrypted saved sessions and sign-out, including local cleanup when offline.
 - Role routing based on the backend profile, with pending/rejected access blocked.
 - Company/team selection, join-request submission and approval-status refresh.

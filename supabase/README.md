@@ -5,14 +5,21 @@ Deployed to project `whtsjwiqcesngltfghyb` on 25 September 2026.
 ## What is live
 
 - Four tables: `public.user`, `company`, `team`, `join_request`, all with RLS.
-- Auth signup automatically creates an engineer/pending profile. Metadata supplies
-  only a display name, never privileges. Auth email changes sync to the profile.
+- Auth signup automatically creates an engineer/pending profile. Metadata supplies a
+  display name, and may request the engineer or manager role. The database accepts
+  only those two values and falls back to engineer for anything else, so the admin
+  role is never granted at signup. Auth email changes sync to the profile.
 - Clients have SELECT only: own profile, active company/team directory, and own
   requests. Active managers see requests for assigned teams in their own company.
   Active admins can review all teams in active companies.
 - `submit-join-request` creates a pending request and updates the profile atomically.
 - `review-join-request` approves/rejects the request and updates the profile atomically,
   recording reviewer and timestamp. Opposite repeat decisions return a conflict.
+- `create-company` lets a manager who registered create their own company and first
+  team, and activates the account in the same transaction. The company starts active
+  so engineers can select it.
+- `create-team` lets an active manager add another team to their company. A manager can
+  only ever own one company, and only teams inside it.
 - Identical retries are idempotent. A profile lock serializes concurrent submissions.
 
 Both deployed functions have `verify_jwt=true` and also verify identity through Auth.
@@ -65,13 +72,22 @@ Do not redeploy or change either live function until the deployed implementation
 reconciled with checked-in source.
 
 The live database also contains `check_in`, `notification_preference`, and company/team
-admin CRUD RPCs. Its migration history has versions `20261016125816`,
-`20261016130554`, and `20261016132319` that are absent from `supabase/migrations`.
-The migration files for those live objects must be recovered or reconstructed and
-reviewed before any production migration push. The local `check_in` table/RLS is now
-defined by `20261018135000_member6_active_check_in_access.sql`; that new migration has
-not been deployed. It also blocks suspended accounts with still-valid Auth sessions
-from reading, inserting, or updating their check-ins.
+admin CRUD RPCs. Its migration history had versions `20261016130554` and `20261016132319`
+that were absent from `supabase/migrations`, which blocked every `supabase db push`.
+Both files were reconstructed on 21 October 2026 from a schema dump of the live
+database, so `20261016130554` holds the `check_in` table and its policies and
+`20261016132319` holds the admin company/team CRUD functions, `private.is_active_admin()`
+and the admin read policies. A fresh local database now matches production.
+
+`20261018135000_member6_active_check_in_access.sql` is still pending and has not been
+deployed. It also blocks suspended accounts with still-valid Auth sessions from
+reading, inserting, or updating their check-ins.
+
+The live project rate-limits public signups: `POST /auth/v1/signup` answered
+429 Too Many Requests on 21 October 2026 from the development network. New
+engineer accounts must be created through the admin API until the hosted rate limit
+is raised in the dashboard. Signups made through the app are not affected by the
+role handling; only the rate limit stops them.
 
 The Android admin screen currently lists account identities and supports suspend /
 reactivate. Company/team CRUD and temporary credential creation are not wired into the
@@ -94,6 +110,12 @@ POST /functions/v1/submit-join-request
 
 POST /functions/v1/review-join-request
 {"request_id":"<UUID>","approve":true}
+
+POST /functions/v1/create-company
+{"company_name":"<name>","team_name":"<first team name>"}
+
+POST /functions/v1/create-team
+{"team_name":"<name>"}
 ```
 
 Send the public key in `apikey` and the user's access token in
@@ -104,6 +126,10 @@ Only intentional database error messages are exposed; internal details are hidde
 
 ## Add a company, team and manager later
 
+Managers no longer need trusted provisioning: they create their own company and first
+team in the app, and can add further teams from their Team screen. Use the script below
+only for the preconfigured DevWell demo.
+
 For the preconfigured DevWell demo only, the trusted-SQL script
 [setup-devwell-directory.sql](./setup-devwell-directory.sql) creates or activates the
 DevWell company and Software Engineering team, then assigns the configured manager
@@ -112,13 +138,10 @@ email and directory names before running it, and run it only on the intended Sup
 project. The directory remains empty unless this optional script or equivalent trusted
 provisioning is deliberately applied.
 
-1. Have the manager register and confirm their email normally.
-2. In a trusted Supabase SQL Editor session, create an active company and a team linked
-   to it. Use their generated IDs for the following updates.
-3. Update that exact registered profile to `role=manager`, `status=active`,
-   `onboarding_done=true`, and `company_id=<company UUID>`.
-4. Set the team's `manager_id` to that profile ID. Company IDs must match.
-5. Sign in again. Engineers can now select that company/team.
+1. Have the manager register and confirm their email normally, choosing the manager role.
+2. Sign in and create the company and first team in the app.
+3. Engineers select that company and team and send a join request.
+4. The manager approves the request in the app.
 
 Provision admins only through trusted SQL/admin operations. Never put role-changing
 credentials in Android. Reconsidering a rejected request is an explicit trusted admin
@@ -136,6 +159,8 @@ supabase db push --dry-run
 supabase db push
 supabase functions deploy submit-join-request --project-ref whtsjwiqcesngltfghyb --use-api
 supabase functions deploy review-join-request --project-ref whtsjwiqcesngltfghyb --use-api
+supabase functions deploy create-company --project-ref whtsjwiqcesngltfghyb
+supabase functions deploy create-team --project-ref whtsjwiqcesngltfghyb
 deno task --config supabase/functions/deno.json check
 deno task --config supabase/functions/deno.json test
 ```
@@ -175,3 +200,19 @@ To repeat live checks on an empty development project:
 References: [Auth headers](https://supabase.com/docs/guides/functions/auth-headers),
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [unused-index advisor](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
+
+## Verification: 21 October 2026 (manager registration)
+
+- Deno type checks passed for all 7 function entrypoints and all 26 function unit tests
+  passed, including the new `create-company` and `create-team` routing and validation.
+- The migration was applied to a local Supabase stack first. 35 HTTP checks passed
+  against the local database, then 31 against the live project with real user tokens.
+- Live public signup is rate-limited, so the live test accounts were created through
+  the admin API. The profile trigger still ran, so the role handling was unchanged.
+- The live project now has `create-company` and `create-team` deployed with
+  `verify_jwt=true`, and migration `20261021120000_member1_manager_registration.sql`
+  applied.
+- Every account, team and company created by the checks was removed afterwards; the
+  live database was confirmed to hold no leftover test rows.
+- `20261018135000_member6_active_check_in_access.sql` was deliberately left pending
+  and was not deployed with this change.

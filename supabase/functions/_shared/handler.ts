@@ -1,4 +1,4 @@
-type Operation = "submit" | "review";
+type Operation = "submit" | "review" | "create-company" | "create-team";
 type Config = { url: string; publicKey: string };
 type Fetcher = typeof fetch;
 
@@ -11,6 +11,10 @@ const headers = {
 };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers });
+
+/** Accepts a trimmed, non-empty name within the column's length limit. */
+const isName = (value: unknown, max: number): boolean =>
+  typeof value === "string" && value.trim().length > 0 && value.trim().length <= max;
 
 // The caller's token is forwarded to Postgres. No service-role key is needed.
 export function createHandler(operation: Operation, config: Config, send: Fetcher = fetch) {
@@ -79,6 +83,24 @@ export function createHandler(operation: Operation, config: Config, send: Fetche
         }
         rpc = "submit_join_request";
         args = { p_company_id: body.company_id, p_team_id: body.team_id };
+      } else if (operation === "create-company") {
+        if (
+          Object.keys(body).some((key) => !["company_name", "team_name"].includes(key)) ||
+          !isName(body.company_name, 150) || !isName(body.team_name, 60)
+        ) {
+          return reply(400, { error: "Provide a company name and a first team name." });
+        }
+        rpc = "create_manager_company";
+        args = { p_company_name: body.company_name, p_team_name: body.team_name };
+      } else if (operation === "create-team") {
+        if (
+          Object.keys(body).some((key) => key !== "team_name") ||
+          !isName(body.team_name, 60)
+        ) {
+          return reply(400, { error: "Provide a team name." });
+        }
+        rpc = "create_team";
+        args = { p_team_name: body.team_name };
       } else {
         if (
           Object.keys(body).some((key) => !["request_id", "approve"].includes(key)) ||

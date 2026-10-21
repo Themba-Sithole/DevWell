@@ -11,6 +11,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import za.co.devwell.data.AuthRepository
+import za.co.devwell.data.ManagerRepository
 import za.co.devwell.data.OnboardingRepository
 import za.co.devwell.model.*
 import za.co.devwell.viewmodel.AuthViewModel
@@ -21,7 +22,8 @@ class AuthViewModelTest {
     private val store = ViewModelStore()
     @Before fun setup() { Dispatchers.setMain(dispatcher) }
     @After fun teardown() { store.clear(); Dispatchers.resetMain() }
-    private fun model(fake: FakeIdentity) = AuthViewModel(fake, fake).also { store.put("auth", it) }
+    private fun model(fake: FakeIdentity, manager: FakeManager = FakeManager()) =
+        AuthViewModel(fake, fake, manager).also { store.put("auth", it) }
 
     @Test fun invalidFormDoesNotContactBackend() = runTest(dispatcher) {
         val fake = FakeIdentity(); val vm = model(fake); runCurrent()
@@ -71,6 +73,59 @@ class AuthViewModelTest {
         fake.currentUser.value = null; runCurrent()
         assertEquals(EntryDestination.LOGIN, entryDestination(vm.ui.value.user))
     }
+    @Test fun registrationSendsTheRequestedRole() = runTest(dispatcher) {
+        val fake = FakeIdentity(); val vm = model(fake); runCurrent()
+        vm.signUp("Student", "user@example.com", "password123", "password123", SignupRole.MANAGER); runCurrent()
+        assertEquals(SignupRole.MANAGER, fake.requestedRole)
+
+        vm.signUp("Student", "user@example.com", "password123", "password123", SignupRole.ENGINEER); runCurrent()
+        assertEquals(SignupRole.ENGINEER, fake.requestedRole)
+    }
+    @Test fun invalidRegistrationNeverReachesTheBackend() = runTest(dispatcher) {
+        val fake = FakeIdentity(); val vm = model(fake); runCurrent()
+        vm.signUp("Student", "user@example.com", "short", "short", SignupRole.MANAGER); runCurrent()
+        assertNull(fake.requestedRole)
+        assertNotNull(vm.ui.value.error)
+    }
+    @Test fun managerCreatesCompanyAndReachesTheManagerDashboard() = runTest(dispatcher) {
+        val fake = FakeIdentity()
+        fake.currentUser.value = DevWellUser("u2", "Boss", "boss@example.com", UserRole.MANAGER,
+            status = AccountStatus.PENDING, onboardingDone = false)
+        val manager = FakeManager()
+        val vm = model(fake, manager); runCurrent()
+        assertEquals(EntryDestination.MANAGER_ONBOARDING, entryDestination(vm.ui.value.user))
+
+        vm.createManagerCompany("Acme Software", "Platform"); runCurrent()
+
+        assertEquals("Acme Software" to "Platform", fake.createdCompany)
+        assertEquals(EntryDestination.MANAGER, entryDestination(vm.ui.value.user))
+        // The manager screens must pick up the team that was just created.
+        assertEquals(1, manager.refreshes)
+    }
+    @Test fun invalidCompanyNamesAreRejectedBeforeTheBackend() = runTest(dispatcher) {
+        val fake = FakeIdentity()
+        fake.currentUser.value = DevWellUser("u2", "Boss", "boss@example.com", UserRole.MANAGER,
+            status = AccountStatus.PENDING, onboardingDone = false)
+        val vm = model(fake); runCurrent()
+
+        vm.createManagerCompany("  ", "Platform"); runCurrent()
+
+        assertNull(fake.createdCompany)
+        assertNotNull(vm.ui.value.error)
+    }
+    @Test fun failedCompanyCreationKeepsTheManagerOnTheOnboardingScreen() = runTest(dispatcher) {
+        val fake = FakeIdentity(); fake.fail = true
+        fake.currentUser.value = DevWellUser("u2", "Boss", "boss@example.com", UserRole.MANAGER,
+            status = AccountStatus.PENDING, onboardingDone = false)
+        val manager = FakeManager()
+        val vm = model(fake, manager); runCurrent()
+
+        vm.createManagerCompany("Acme Software", "Platform"); runCurrent()
+
+        assertEquals(EntryDestination.MANAGER_ONBOARDING, entryDestination(vm.ui.value.user))
+        assertNotNull(vm.ui.value.error)
+        assertEquals(0, manager.refreshes)
+    }
 
     private class FakeIdentity : AuthRepository, OnboardingRepository {
         val newEngineer = DevWellUser("u1", "Student", "user@example.com", UserRole.ENGINEER,
@@ -81,6 +136,8 @@ class AuthViewModelTest {
         var signIns = 0
         var fail = false
         var approved = false
+        var requestedRole: SignupRole? = null
+        var createdCompany: Pair<String, String>? = null
         var waitForLogin: CompletableDeferred<Unit>? = null
         override suspend fun signIn(email: String, password: String): Result<DevWellUser> {
             signIns++
@@ -88,6 +145,10 @@ class AuthViewModelTest {
             if (fail) return Result.failure(IllegalStateException("Login failed"))
             currentUser.value = newEngineer
             return Result.success(newEngineer)
+        }
+        override suspend fun signUp(name: String, email: String, password: String, role: SignupRole): String {
+            requestedRole = role
+            return "Account created."
         }
         override suspend fun signOut() { currentUser.value = null }
         override suspend fun refreshProfile() {
@@ -97,6 +158,26 @@ class AuthViewModelTest {
             if (fail) error("Request failed")
             currentUser.value = currentUser.value?.copy(companyId = companyId, teamId = teamId, onboardingDone = true)
         }
-        override suspend fun registerCompany(name: String, emailDomain: String?) = Company("c1", name)
+        override suspend fun createManagerCompany(companyName: String, teamName: String) {
+            if (fail) error("Company failed")
+            createdCompany = companyName to teamName
+            currentUser.value = currentUser.value?.copy(
+                role = UserRole.MANAGER, companyId = "c1", teamId = "t1",
+                status = AccountStatus.ACTIVE, onboardingDone = true,
+            )
+        }
+    }
+
+    /** Counts the reloads the view model asks for after the company is created. */
+    private class FakeManager : ManagerRepository {
+        override val joinRequests = MutableStateFlow<List<JoinRequest>>(emptyList())
+        override val managedTeams = MutableStateFlow<List<Team>>(emptyList())
+        override val managedTeam = MutableStateFlow<Team?>(null)
+        var refreshes = 0
+        override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) = Unit
+        override suspend fun updateTeamSettings(team: Team) = Unit
+        override suspend fun selectTeam(teamId: String) = Unit
+        override suspend fun createTeam(name: String) = Unit
+        override suspend fun refresh() { refreshes++ }
     }
 }

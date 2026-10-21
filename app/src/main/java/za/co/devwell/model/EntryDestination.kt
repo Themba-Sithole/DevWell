@@ -1,12 +1,14 @@
 package za.co.devwell.model
 
-enum class EntryDestination { LOGIN, ONBOARDING, PENDING, ENGINEER, MANAGER, ADMIN }
+enum class EntryDestination { LOGIN, ONBOARDING, MANAGER_ONBOARDING, PENDING, ENGINEER, MANAGER, ADMIN }
 
 /** A pending new engineer can choose a team, but cannot enter protected screens. */
 fun entryDestination(user: DevWellUser?): EntryDestination = when {
     user == null -> EntryDestination.LOGIN
     user.status == AccountStatus.REJECTED -> EntryDestination.PENDING
     user.status == AccountStatus.SUSPENDED -> EntryDestination.PENDING
+    // A new manager has no company yet, so they create one before the dashboard.
+    user.role == UserRole.MANAGER && !user.onboardingDone -> EntryDestination.MANAGER_ONBOARDING
     user.role == UserRole.ENGINEER && !user.onboardingDone -> EntryDestination.ONBOARDING
     user.status != AccountStatus.ACTIVE || !user.onboardingDone -> EntryDestination.PENDING
     user.role == UserRole.ENGINEER && (user.companyId.isNullOrBlank() || user.teamId.isNullOrBlank()) -> EntryDestination.ONBOARDING
@@ -46,3 +48,19 @@ fun registrationValidation(name: String, email: String, password: String, confir
         password != confirmation -> "The passwords do not match."
         else -> null
     }
+
+/** Mirrors the company and team name limits in the database. */
+const val COMPANY_NAME_MAX = 150
+const val TEAM_NAME_MAX = 60
+
+fun companyNameValidation(name: String): String? = when {
+    name.trim().isEmpty() -> "Enter your company name."
+    name.trim().length > COMPANY_NAME_MAX -> "Company name must be $COMPANY_NAME_MAX characters or fewer."
+    else -> null
+}
+
+fun teamNameValidation(name: String): String? = when {
+    name.trim().isEmpty() -> "Enter a team name."
+    name.trim().length > TEAM_NAME_MAX -> "Team name must be $TEAM_NAME_MAX characters or fewer."
+    else -> null
+}

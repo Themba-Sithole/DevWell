@@ -9,11 +9,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +29,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -34,6 +37,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import za.co.devwell.R
+import za.co.devwell.model.SignupRole
 import za.co.devwell.ui.components.DevWellTextField
 import za.co.devwell.ui.components.devWellScrollbar
 import za.co.devwell.ui.theme.*
@@ -43,7 +47,7 @@ import za.co.devwell.viewmodel.AuthUiState
 fun LoginScreen(
     state: AuthUiState,
     onSignIn: (String, String) -> Unit,
-    onSignUp: (String, String, String, String) -> Unit,
+    onSignUp: (String, String, String, String, SignupRole) -> Unit,
     onClearFeedback: () -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf("splash") }
@@ -53,6 +57,7 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    var role by rememberSaveable { mutableStateOf(SignupRole.ENGINEER) }
     val pageScroll = rememberScrollState()
     fun changePage(next: String) {
         page = next
@@ -149,6 +154,7 @@ fun LoginScreen(
                         },
                     )
                     if (registering) {
+                        RolePicker(role, !state.busy) { role = it }
                         DevWellTextField(
                             confirmation, { confirmation = it }, label = "Confirm password", singleLine = true,
                             enabled = !state.busy,
@@ -156,7 +162,11 @@ fun LoginScreen(
                             visualTransformation = PasswordVisualTransformation(),
                         )
                         Text(
-                            "Use at least 8 characters. Your manager will approve your team access.",
+                            if (role == SignupRole.MANAGER) {
+                                "Use at least 8 characters. You will create your company and first team next."
+                            } else {
+                                "Use at least 8 characters. Your manager will approve your team access."
+                            },
                             color = AuthMuted, style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -165,7 +175,7 @@ fun LoginScreen(
                         if (state.busy) "Please wait..." else if (registering) "Create account" else "Sign in",
                         modifier = Modifier.fillMaxWidth(), enabled = !state.busy,
                     ) {
-                        if (registering) onSignUp(name, email, password, confirmation) else onSignIn(email, password)
+                        if (registering) onSignUp(name, email, password, confirmation, role) else onSignIn(email, password)
                     }
                     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     TextButton(onClick = { changePage(if (registering) "login" else "register") }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
@@ -187,6 +197,66 @@ private fun authPageOrder(page: String): Int = when (page) {
     "splash" -> 0
     "login" -> 1
     else -> 2
+}
+
+/**
+ * Lets a new account choose between joining a team and leading one. The choice
+ * is a request only: the database grants the final role and never accepts admin.
+ */
+@Composable
+private fun RolePicker(role: SignupRole, enabled: Boolean, onSelect: (SignupRole) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("I want to register as", style = MaterialTheme.typography.labelLarge, color = AuthMuted)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            RoleCard(
+                title = "Engineer", subtitle = "Join a team", selected = role == SignupRole.ENGINEER,
+                enabled = enabled, modifier = Modifier.weight(1f),
+            ) { onSelect(SignupRole.ENGINEER) }
+            RoleCard(
+                title = "Manager", subtitle = "Create a company", selected = role == SignupRole.MANAGER,
+                enabled = enabled, modifier = Modifier.weight(1f),
+            ) { onSelect(SignupRole.MANAGER) }
+        }
+        Text(
+            if (role == SignupRole.MANAGER) {
+                "You will create your company and first team. Engineers can then request to join it."
+            } else {
+                "You will pick the company and team you work for. A manager approves your request."
+            },
+            color = AuthMuted, style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun RoleCard(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = AuthShape,
+        color = if (selected) AccentSurface else Color.White,
+        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AuthGreen else AuthBorder),
+        modifier = modifier.selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected) AuthGreen else AuthMuted,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = AuthMuted,
+            )
+        }
+    }
 }
 
 @Composable

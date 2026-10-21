@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import za.co.devwell.data.AppContainer
 import za.co.devwell.data.AuthRepository
+import za.co.devwell.data.ManagerRepository
 import za.co.devwell.data.OnboardingRepository
 import za.co.devwell.model.*
 
@@ -29,6 +30,7 @@ data class AuthUiState(
 class AuthViewModel(
     private val auth: AuthRepository = AppContainer.auth,
     private val onboarding: OnboardingRepository = AppContainer.onboarding,
+    private val manager: ManagerRepository = AppContainer.manager,
 ) : ViewModel() {
     private val state = MutableStateFlow(AuthUiState())
     val ui = state.asStateFlow()
@@ -62,11 +64,11 @@ class AuthViewModel(
         action { auth.signIn(email.trim(), password).getOrThrow() }
     }
 
-    fun signUp(name: String, email: String, password: String, confirmation: String) {
+    fun signUp(name: String, email: String, password: String, confirmation: String, role: SignupRole) {
         val error = registrationValidation(name, email, password, confirmation)
         if (error != null) { state.update { it.copy(error = error, message = null) }; return }
         action {
-            val message = auth.signUp(name.trim(), email.trim(), password)
+            val message = auth.signUp(name.trim(), email.trim(), password, role)
             state.update { it.copy(message = message) }
         }
     }
@@ -125,6 +127,21 @@ class AuthViewModel(
 
     fun submitJoinRequest(companyId: String, teamId: String) = action {
         onboarding.submitEngineerJoinRequest(companyId, teamId)
+    }
+
+    /** Creates the manager's company and first team, then routes into the manager dashboard. */
+    fun createManagerCompany(companyName: String, teamName: String) {
+        val error = companyNameValidation(companyName) ?: teamNameValidation(teamName)
+        if (error != null) { state.update { it.copy(error = error, message = null) }; return }
+        action {
+            onboarding.createManagerCompany(companyName.trim(), teamName.trim())
+            // The manager now owns a team, so the manager screens must load it.
+            try { manager.refresh() }
+            catch (error: CancellationException) { throw error }
+            catch (_: Exception) {
+                // The company was created; a failed reload only leaves the team list stale.
+            }
+        }
     }
 
     fun signOut() = action {

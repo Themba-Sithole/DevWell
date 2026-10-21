@@ -390,6 +390,12 @@ verify_jwt = true
 [functions.review-join-request]
 verify_jwt = true
 
+[functions.create-company]
+verify_jwt = true
+
+[functions.create-team]
+verify_jwt = true
+
 [functions.admin-dashboard]
 verify_jwt = true
 

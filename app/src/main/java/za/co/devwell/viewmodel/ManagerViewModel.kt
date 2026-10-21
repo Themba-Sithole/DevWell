@@ -13,12 +13,15 @@ import kotlinx.coroutines.launch
 import za.co.devwell.data.ManagerRepository
 import za.co.devwell.model.JoinRequest
 import za.co.devwell.model.Team
+import za.co.devwell.model.teamNameValidation
 
 data class ManagerUiState(
     val joinRequests: List<JoinRequest> = emptyList(),
     val team: Team? = null,
+    val teams: List<Team> = emptyList(),
     val reviewingId: String? = null,      // request currently being approved/declined
     val savingSettings: Boolean = false,
+    val creatingTeam: Boolean = false,
     val error: String? = null,
     val message: String? = null,
 )
@@ -55,6 +58,7 @@ class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() 
     init {
         observe(repository.joinRequests) { current, requests -> current.copy(joinRequests = requests) }
         observe(repository.managedTeam) { current, team -> current.copy(team = team) }
+        observe(repository.managedTeams) { current, teams -> current.copy(teams = teams) }
     }
 
     private fun <T> observe(flow: Flow<T>, apply: (ManagerUiState, T) -> ManagerUiState) {
@@ -85,6 +89,43 @@ class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() 
                 state.update { it.copy(error = friendlyError(error)) }
             } finally {
                 state.update { it.copy(reviewingId = null) }
+            }
+        }
+    }
+
+    /** Switches the managed team so its requests and roster are shown. */
+    fun selectTeam(teamId: String) {
+        if (state.value.team?.id == teamId) return
+        viewModelScope.launch {
+            try {
+                repository.selectTeam(teamId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            }
+        }
+    }
+
+    /** Adds another team to the manager's company. */
+    fun createTeam(name: String) {
+        if (state.value.creatingTeam) return
+        val problem = teamNameValidation(name)
+        if (problem != null) {
+            state.update { it.copy(error = problem, message = null) }
+            return
+        }
+        state.update { it.copy(creatingTeam = true, error = null, message = null) }
+        viewModelScope.launch {
+            try {
+                repository.createTeam(name.trim())
+                state.update { it.copy(message = "Team created.") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            } finally {
+                state.update { it.copy(creatingTeam = false) }
             }
         }
     }
