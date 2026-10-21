@@ -98,6 +98,22 @@ internal fun wellbeingDisplay(average: Double?): WellbeingDisplay {
     )
 }
 
+/** True only when both are real numbers and the team average is strictly below the manager's threshold. */
+internal fun belowAlertThreshold(average: Double?, threshold: Double?): Boolean =
+    average != null && threshold != null && average.isFinite() && threshold.isFinite() && average < threshold
+
+/** One muted line under the wellbeing chip. Uses the anonymous team average and a team-level setting only. */
+@Composable
+private fun AlertThresholdNote(average: Double?, threshold: Double?) {
+    if (!belowAlertThreshold(average, threshold)) return
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "Below your alert threshold (${threshold!!.oneDecimal()})",
+        style = MaterialTheme.typography.bodySmall,
+        color = InkMuted,
+    )
+}
+
 /** Text for one Insights card. Built from anonymous team averages only. */
 internal data class InsightCardText(val emoji: String, val title: String, val body: String, val amber: Boolean)
 
@@ -219,7 +235,7 @@ private fun FeedbackCard(error: String?, message: String?, onDismiss: () -> Unit
  * "What my manager sees" preview, so the preview can never drift away from the real view.
  */
 @Composable
-internal fun ManagerTeamInsights(aggregate: TeamAggregate?) {
+internal fun ManagerTeamInsights(aggregate: TeamAggregate?, alertThreshold: Double? = null) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
     val bars = aggregate?.let { teamChartBars(it) }
     Column(
@@ -282,6 +298,7 @@ internal fun ManagerTeamInsights(aggregate: TeamAggregate?) {
                         }
                         Spacer(Modifier.height(6.dp))
                         Chip(wellbeing.band, skin = wellbeing.skin)
+                        AlertThresholdNote(safe.averageWellbeing, alertThreshold)
                         Spacer(Modifier.height(6.dp))
                         Text(
                             "${safe.responseCount} anonymous participants this period",
@@ -346,8 +363,12 @@ fun ManagerHomeScreen(
     onTeamSettings: () -> Unit,
     onProfile: () -> Unit = {},
     managerName: String = "",
+    alertThreshold: Double? = null,
+    teamName: String? = null,
 ) {
     val firstName = managerName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+    val title = teamName?.trim()?.takeIf { it.isNotEmpty() }
+        ?: if (firstName.isEmpty()) "Your team" else "$firstName's Team"
 
     LazyColumn(
         Modifier.fillMaxSize().padding(20.dp),
@@ -358,7 +379,7 @@ fun ManagerHomeScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Manager dashboard", style = MaterialTheme.typography.bodySmall, color = InkMuted)
                     Text(
-                        if (firstName.isEmpty()) "Your team" else "$firstName's Team",
+                        title,
                         style = MaterialTheme.typography.headlineLarge,
                         color = Ink,
                     )
@@ -369,7 +390,7 @@ fun ManagerHomeScreen(
             }
         }
         item {
-            ManagerTeamInsights(aggregate)
+            ManagerTeamInsights(aggregate, alertThreshold)
         }
         item {
             DevWellButton(
@@ -658,7 +679,7 @@ fun TeamSettingsScreen(
                     ),
                 )
                 Text(
-                    "Team-level setting only. No individual scores are shown.",
+                    "Team-level setting only. Your Overview shows a note when the team average is below this.",
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                 )
@@ -762,6 +783,7 @@ fun ManagerTeamScreen(
     aggregate: TeamAggregate?,
     onJoinRequests: () -> Unit,
     onTeamSettings: () -> Unit,
+    alertThreshold: Double? = null,
 ) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
     val bars = aggregate?.let { teamChartBars(it) }
@@ -830,6 +852,7 @@ fun ManagerTeamScreen(
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 Chip(wellbeing.band, skin = wellbeing.skin)
+                                AlertThresholdNote(safe.averageWellbeing, alertThreshold)
                             }
                             Spacer(Modifier.width(12.dp))
                             ScoreRing(
@@ -999,6 +1022,29 @@ private fun ManagerHomeHiddenPreview() {
 @Composable
 private fun ManagerHomeVisiblePreview() {
     DevWellTheme { ManagerHomeScreen(previewAggregate, {}, {}) }
+}
+
+@Preview(showBackground = true, name = "Visible: below alert threshold")
+@Composable
+private fun ManagerHomeBelowThresholdPreview() {
+    DevWellTheme {
+        ManagerHomeScreen(
+            previewAggregate.copy(averageWellbeing = 1.8), {}, {},
+            alertThreshold = 2.0,
+            teamName = "Platform Squad",
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Title: 60-character team name")
+@Composable
+private fun ManagerHomeLongNamePreview() {
+    DevWellTheme {
+        ManagerHomeScreen(
+            previewAggregate, {}, {},
+            teamName = "Platform Engineering & Developer Experience Squad, Cape Town",  // 60 chars = NAME_MAX_LENGTH
+        )
+    }
 }
 
 private val previewMissingAverages = previewAggregate.copy(

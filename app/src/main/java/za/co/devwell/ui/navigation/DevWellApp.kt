@@ -374,19 +374,26 @@ private fun RoleApp(
             if (user.role == UserRole.MANAGER) {
             // Manager
             tabComposable(Routes.MANAGER_HOME) {
+                val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
+                val managerState by managerViewModel.ui.collectAsStateWithLifecycle()
                 ManagerHomeScreen(
                     aggregate = aggregate,
                     onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
                     onProfile = { navController.navigate(Routes.MANAGER_PROFILE) },
                     managerName = user.name,
+                    alertThreshold = managerState.team?.lowWellbeingThreshold,
+                    teamName = managerState.team?.name,
                 )
             }
             tabComposable(Routes.MANAGER_TEAM) {
+                val managerViewModel: ManagerViewModel = viewModel(factory = ManagerViewModelFactory(AppContainer.manager))
+                val managerState by managerViewModel.ui.collectAsStateWithLifecycle()
                 ManagerTeamScreen(
                     aggregate = aggregate,
                     onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
+                    alertThreshold = managerState.team?.lowWellbeingThreshold,
                 )
             }
             tabComposable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }
