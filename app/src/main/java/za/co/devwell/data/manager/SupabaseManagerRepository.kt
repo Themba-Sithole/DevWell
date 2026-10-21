@@ -92,7 +92,7 @@ class SupabaseManagerRepository(
         // Names are optional extras: if either function fails, keep placeholders and the previous count.
         val roster = team?.let { optional { supabase.postgrest.rpc("team_roster", teamArg(it.id)).decodeList<RosterMemberRow>() } }
         val pending = team?.let { optional { supabase.postgrest.rpc("pending_join_requesters", teamArg(it.id)).decodeList<PendingRequesterRow>() } }
-        // Pending names cover pending requests; roster names cover approved requesters who are now members.
+        // Pending names cover pending and declined requests; roster names cover approved requesters who are now members.
         val names = roster.orEmpty().associate { it.userId to it.name } + pending.orEmpty().associate { it.userId to it.name }
         val previous = managedTeam.value?.takeIf { it.id == team?.id }
         managedTeam.value = team?.let {
