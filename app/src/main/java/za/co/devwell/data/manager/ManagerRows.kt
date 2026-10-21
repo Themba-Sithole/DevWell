@@ -27,7 +27,7 @@ data class JoinRequestRow(
 /** Shown when a name could not be loaded. */
 internal fun placeholderName(userId: String) = "Engineer ${userId.take(8)}"
 
-/** Row of public.pending_join_requesters(p_team_id). Name only, never email. */
+/** Row of public.pending_join_requesters(p_team_id): pending and declined requests. Name only, never email. */
 @Serializable
 data class PendingRequesterRow(
     @SerialName("request_id") val requestId: String,
