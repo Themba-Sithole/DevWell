@@ -33,9 +33,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import za.co.devwell.BuildConfig
 import za.co.devwell.R
-import za.co.devwell.model.UserRole
 import za.co.devwell.ui.components.DevWellTextField
 import za.co.devwell.ui.theme.*
 import za.co.devwell.viewmodel.AuthUiState
@@ -46,7 +44,6 @@ fun LoginScreen(
     onSignIn: (String, String) -> Unit,
     onSignUp: (String, String, String, String) -> Unit,
     onClearFeedback: () -> Unit,
-    onPreview: (UserRole, Boolean) -> Unit,
 ) {
     var page by rememberSaveable { mutableStateOf("splash") }
     var name by rememberSaveable { mutableStateOf("") }
@@ -55,7 +52,6 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
-    var showPreview by rememberSaveable { mutableStateOf(false) }
     fun changePage(next: String) {
         page = next
         password = ""
@@ -176,16 +172,6 @@ fun LoginScreen(
                         "Your sign-in is saved securely on this device. Sign out when using a shared phone.",
                         color = AuthMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
                     )
-                    if (BuildConfig.DEBUG) {
-                        TextButton(onClick = { showPreview = !showPreview }, enabled = !state.busy) { Text("Student preview (debug only)") }
-                        if (showPreview) {
-                            Text("Uses sample data. No real account or database changes.", style = MaterialTheme.typography.bodySmall)
-                            UserRole.entries.forEach { role ->
-                                OutlinedButton(onClick = { onPreview(role, false) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Preview ${role.name.lowercase()}") }
-                            }
-                            OutlinedButton(onClick = { onPreview(UserRole.ENGINEER, true) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Preview new engineer") }
-                        }
-                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

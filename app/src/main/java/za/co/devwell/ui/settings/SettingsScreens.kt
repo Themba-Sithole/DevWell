@@ -506,7 +506,6 @@ fun AiAssistantScreen(
     sending: Boolean,
     error: String?,
     liveAssistantAvailable: Boolean = true,
-    previewAssistantAvailable: Boolean = false,
     onSend: (String) -> Unit,
     onRetry: () -> Unit,
     onNewChat: () -> Unit,
@@ -514,7 +513,7 @@ fun AiAssistantScreen(
     var input by rememberSaveable { mutableStateOf("") }
     var consent by rememberSaveable { mutableStateOf(false) }
     var consentConfirmed by remember { mutableStateOf(false) }
-    val available = liveAssistantAvailable || previewAssistantAvailable
+    val available = liveAssistantAvailable
     val canSend = available && consent && input.isNotBlank() && !sending
     val listState = rememberLazyListState()
 

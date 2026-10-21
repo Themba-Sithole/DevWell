@@ -21,7 +21,7 @@ class AuthViewModelTest {
     private val store = ViewModelStore()
     @Before fun setup() { Dispatchers.setMain(dispatcher) }
     @After fun teardown() { store.clear(); Dispatchers.resetMain() }
-    private fun model(fake: FakeIdentity, preview: Boolean = false) = AuthViewModel(fake, fake, preview).also { store.put("auth", it) }
+    private fun model(fake: FakeIdentity) = AuthViewModel(fake, fake).also { store.put("auth", it) }
 
     @Test fun invalidFormDoesNotContactBackend() = runTest(dispatcher) {
         val fake = FakeIdentity(); val vm = model(fake); runCurrent()
@@ -64,12 +64,6 @@ class AuthViewModelTest {
         vm.signOut(); runCurrent()
         assertEquals(EntryDestination.LOGIN, entryDestination(vm.ui.value.user))
     }
-    @Test fun previewIsDisabledInReleaseMode() = runTest(dispatcher) {
-        val vm = model(FakeIdentity(), false); runCurrent()
-        vm.startPreview(UserRole.ADMIN); runCurrent()
-        assertNull(vm.ui.value.user)
-        assertFalse(vm.ui.value.preview)
-    }
     @Test fun expiredSessionClosesProtectedScreen() = runTest(dispatcher) {
         val fake = FakeIdentity(); val vm = model(fake); runCurrent()
         vm.signIn("user@example.com", "password"); runCurrent()
@@ -95,7 +89,6 @@ class AuthViewModelTest {
             currentUser.value = newEngineer
             return Result.success(newEngineer)
         }
-        override suspend fun demoLogin(role: UserRole) {}
         override suspend fun signOut() { currentUser.value = null }
         override suspend fun refreshProfile() {
             if (approved) currentUser.value = currentUser.value?.copy(status = AccountStatus.ACTIVE)

@@ -35,7 +35,7 @@ import kotlinx.coroutines.flow.combine
 
 /* --------------------------------------------------------------------------
  * Repository contracts — UI/ViewModels depend on these, never on Supabase SDKs.
- * Each member replaces the Mock* class for their feature with a Supabase* class.
+ * Mock* classes at the bottom are test fixtures; the app always uses Supabase*.
  * -------------------------------------------------------------------------- */
 
 interface AuthRepository {
@@ -49,7 +49,6 @@ interface AuthRepository {
     suspend fun updateEmail(email: String): String = error("Changing your email is unavailable")
     /** Replaces the signed-in account's password. Returns a confirmation message. */
     suspend fun updatePassword(password: String): String = error("Changing your password is unavailable")
-    suspend fun demoLogin(role: UserRole)
     suspend fun signIn(email: String, password: String): Result<DevWellUser>
     suspend fun signOut()
 }
@@ -103,7 +102,7 @@ interface AiGuidanceRepository {
      * in-session transcript, oldest first; the last entry must be the user's
      * newest question. Recent turns are forwarded so replies stay in context.
      */
-    suspend fun ask(messages: List<AiMessage>, preview: Boolean = false): Result<String>
+    suspend fun ask(messages: List<AiMessage>): Result<String>
 }
 
 interface AdminRepository {
@@ -118,83 +117,8 @@ interface AdminRepository {
 }
 
 /* --------------------------------------------------------------------------
- * In-memory mocks so the skeleton runs without a backend.
+ * In-memory fakes used by unit tests.
  * -------------------------------------------------------------------------- */
-
-class MockAuthRepository : AuthRepository {
-    private val user = MutableStateFlow<DevWellUser?>(null)
-    override val currentUser: Flow<DevWellUser?> = user
-
-    override suspend fun demoLogin(role: UserRole) {
-        user.value = when (role) {
-            UserRole.ENGINEER -> DevWellUser(
-                id = "u1", name = "Alex", email = "engineer@devwell.demo",
-                role = role, companyId = "c1", teamId = "t1", teamName = "Mobile Team",
-            )
-            UserRole.MANAGER -> DevWellUser(
-                id = "u2", name = "Jordan", email = "manager@devwell.demo",
-                role = role, companyId = "c1", teamId = "t1", teamName = "Mobile Team",
-            )
-            UserRole.ADMIN -> DevWellUser(
-                id = "u3", name = "Sam", email = "admin@devwell.demo", role = role,
-            )
-        }
-    }
-
-    override suspend fun signIn(email: String, password: String): Result<DevWellUser> {
-        // Placeholder until Supabase Auth is wired.
-        if (email.isBlank() || password.isBlank()) {
-            return Result.failure(IllegalArgumentException("Email and password required"))
-        }
-        demoLogin(UserRole.ENGINEER)
-        return Result.success(user.value!!)
-    }
-
-    override suspend fun signOut() {
-        user.value = null
-    }
-
-    override suspend fun updateName(name: String): String {
-        user.value = user.value?.copy(name = name.trim())
-        return "Your name has been updated."
-    }
-
-    override suspend fun updateEmail(email: String): String {
-        user.value = user.value?.copy(email = email.trim())
-        return "Your email has been updated."
-    }
-
-    override suspend fun updatePassword(password: String): String = "Your password has been updated."
-}
-
-class MockOnboardingRepository : OnboardingRepository {
-    private val companyState = MutableStateFlow(
-        listOf(
-            Company("c1", "DevWell", "devwell.io"),
-            Company("c2", "Acme Corp", "acme.com"),
-            Company("c3", "TechNova", "technova.dev", CompanyStatus.PENDING),
-        )
-    )
-    private val teamState = MutableStateFlow(
-        listOf(
-            Team("t1", "c1", "Mobile Team", managerId = "u2", memberCount = 8),
-            Team("t2", "c1", "Platform Team", memberCount = 5),
-            Team("t4", "c2", "Backend Team", memberCount = 12),
-        )
-    )
-    override val companies: Flow<List<Company>> = companyState
-    override val teams: Flow<List<Team>> = teamState
-
-    override suspend fun submitEngineerJoinRequest(companyId: String, teamId: String) {
-        // Persist join_request when Supabase is connected.
-    }
-
-    override suspend fun registerCompany(name: String, emailDomain: String?): Company {
-        val created = Company("c${companyState.value.size + 1}", name, emailDomain, CompanyStatus.PENDING)
-        companyState.value = companyState.value + created
-        return created
-    }
-}
 
 class MockWellbeingRepository : WellbeingRepository {
     private val today: String get() = TrendsAnalysis.today().toString()
@@ -448,26 +372,6 @@ class SupabaseWellbeingRepository(
     }
 }
 
-class MockTeamInsightsRepository : TeamInsightsRepository {
-    /** Demo starts BELOW threshold so privacy UI is visible; bump to 5+ to test charts. */
-    private val aggregate = MutableStateFlow(
-        TeamAggregate(
-            teamId = "t1",
-            responseCount = 4,
-            averageWellbeing = 3.7,
-            averageWorkload = 3.9,
-            averageEnergy = 6.4,
-            averageFocus = 6.8,
-            averageAfterHoursMinutes = 45.0,
-        )
-    )
-    override val teamAggregate: Flow<TeamAggregate?> = aggregate
-
-    fun setResponseCountForDemo(count: Int) {
-        aggregate.value = aggregate.value.copy(responseCount = count)
-    }
-}
-
 class MockProjectRepository : ProjectRepository {
     private val items = MutableStateFlow(
         listOf(
@@ -571,31 +475,6 @@ class MockProjectRepository : ProjectRepository {
     }
 }
 
-class MockManagerRepository : ManagerRepository {
-    private val requests = MutableStateFlow(
-        listOf(
-            JoinRequest("jr1", "u_j1", "Jamie Clarke", "jamie@devwell.io", "c1", "t1"),
-            JoinRequest("jr2", "u_j2", "Riya Patel", "riya@devwell.io", "c1", "t2"),
-        )
-    )
-    private val team = MutableStateFlow(
-        Team("t1", "c1", "Mobile Team", managerId = "u2", memberCount = 8)
-    )
-    override val joinRequests: Flow<List<JoinRequest>> = requests
-    override val managedTeam: Flow<Team?> = team
-
-    override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) {
-        requests.value = requests.value.map {
-            if (it.id != requestId) it
-            else it.copy(status = if (approve) JoinRequestStatus.APPROVED else JoinRequestStatus.REJECTED)
-        }
-    }
-
-    override suspend fun updateTeamSettings(teamUpdate: Team) {
-        team.value = teamUpdate
-    }
-}
-
 class MockNotificationRepository : NotificationRepository {
     private val prefs = MutableStateFlow(NotificationPreferences())
     override val preferences: Flow<NotificationPreferences> = prefs
@@ -605,7 +484,7 @@ class MockNotificationRepository : NotificationRepository {
 }
 
 class MockAiGuidanceRepository : AiGuidanceRepository {
-    override suspend fun ask(messages: List<AiMessage>, preview: Boolean): Result<String> {
+    override suspend fun ask(messages: List<AiMessage>): Result<String> {
         val last = messages.lastOrNull()
         if (last == null || !last.fromUser || last.text.isBlank()) {
             return Result.failure(IllegalArgumentException("Ask a question"))
@@ -622,7 +501,7 @@ class MockAiGuidanceRepository : AiGuidanceRepository {
 private data class AiAssistantResponse(val answer: String)
 
 class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuidanceRepository {
-    override suspend fun ask(messages: List<AiMessage>, preview: Boolean): Result<String> = runCatching {
+    override suspend fun ask(messages: List<AiMessage>): Result<String> = runCatching {
         val last = messages.lastOrNull()
         require(last != null && last.fromUser) { "Ask a question first." }
         val question = last.text.trim()
@@ -635,7 +514,6 @@ class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuid
         val response = try {
             supabase.functions.invoke("ai-assistant", body = buildJsonObject {
                 put("consent", true)
-                put("preview", preview)
                 putJsonArray("messages") {
                     recent.forEach { message ->
                         addJsonObject {
@@ -665,62 +543,49 @@ class SupabaseAiGuidanceRepository(private val client: SupabaseClient?) : AiGuid
     }
 }
 
-class MockAdminRepository : AdminRepository {
-    private val statsState = MutableStateFlow(
-        mapOf(
-            "Users" to 5,
-            "Active accounts" to 3,
-            "Suspended accounts" to 1,
-            "Companies" to 4,
-            "Teams" to 9,
-            "Pending requests" to 6,
-        )
-    )
-    override val stats: Flow<Map<String, Int>> = statsState
-    override val isLoading: Flow<Boolean> = MutableStateFlow(false)
-    override val busyUserId: Flow<String?> = MutableStateFlow(null)
-    override val errorMessage: Flow<String?> = MutableStateFlow(null)
-
-    private val usersState = MutableStateFlow(
-        listOf(
-            DevWellUser("u1", "zuh", "zuh@devwell.io", UserRole.ENGINEER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
-            DevWellUser("u2", "themb", "themb@devwell.io", UserRole.MANAGER, companyId = "c1", teamId = "t1", teamName = "Mobile Team"),
-            DevWellUser("u3", "taash", "taash@devwell.io", UserRole.ADMIN),
-            DevWellUser("u4", "dan", "dan@devwell.io", UserRole.ENGINEER, companyId = "c1", status = AccountStatus.PENDING),
-            DevWellUser("u5", "lee", "lee@devwell.io", UserRole.ENGINEER, companyId = "c1", teamId = "t1", status = AccountStatus.SUSPENDED),
-        )
-    )
-    override val users: Flow<List<DevWellUser>> = usersState
-
-    override suspend fun refresh() = Unit
-
-    override fun clearError() = Unit
-
-    override suspend fun setUserStatus(userId: String, active: Boolean) {
-        usersState.value = usersState.value.map {
-            if (it.id == userId) it.copy(status = if (active) AccountStatus.ACTIVE else AccountStatus.SUSPENDED)
-            else it
-        }
-    }
+/** Empty sources used only while the Supabase client is not configured. */
+private class EmptyTeamInsightsRepository : TeamInsightsRepository {
+    override val teamAggregate: Flow<TeamAggregate?> = flowOf(null)
 }
 
-/** Single composition root. Swap Mock* → Supabase* here when the backend is ready. */
+private class EmptyProjectRepository : ProjectRepository {
+    override val projects: Flow<List<DevProject>> = flowOf(emptyList())
+    override suspend fun createProject(project: DevProject) = Unit
+    override suspend fun updateProject(project: DevProject) = Unit
+    override suspend fun deleteProject(projectId: String) = Unit
+    override suspend fun addTask(projectId: String, task: ProjectTask) = Unit
+    override suspend fun updateTask(projectId: String, task: ProjectTask) = Unit
+    override suspend fun deleteTask(projectId: String, taskId: String) = Unit
+    override suspend fun toggleTask(projectId: String, taskId: String) = Unit
+}
+
+private class EmptyAdminRepository : AdminRepository {
+    override val stats: Flow<Map<String, Int>> = flowOf(emptyMap())
+    override val users: Flow<List<DevWellUser>> = flowOf(emptyList())
+    override val isLoading: Flow<Boolean> = flowOf(false)
+    override val busyUserId: Flow<String?> = flowOf(null)
+    override val errorMessage: Flow<String?> = flowOf(null)
+    override suspend fun refresh() = Unit
+    override fun clearError() = Unit
+    override suspend fun setUserStatus(userId: String, active: Boolean) = Unit
+}
+
+/** Single composition root. Runtime data always comes from Supabase. */
 object AppContainer {
     private lateinit var identity: za.co.devwell.data.auth.SupabaseIdentityRepository
     private lateinit var wellbeingRepo: WellbeingRepository
     private lateinit var managerRepo: ManagerRepository
     private lateinit var teamInsightsRepo: TeamInsightsRepository
-    private var adminRepository: AdminRepository = MockAdminRepository()
-    private var projectRepository: ProjectRepository = MockProjectRepository()
-    private var aiRepository: AiGuidanceRepository = MockAiGuidanceRepository()
+    private var adminRepository: AdminRepository = EmptyAdminRepository()
+    private var projectRepository: ProjectRepository = EmptyProjectRepository()
+    private var aiRepository: AiGuidanceRepository = SupabaseAiGuidanceRepository(null)
     private var notificationRepository: NotificationRepository = MockNotificationRepository()
 
     fun initialize(context: android.content.Context) {
         if (!::identity.isInitialized) {
-            notificationRepository = PersistentNotificationRepository(context.applicationContext)
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
             val client = za.co.devwell.data.auth.SupabaseSetup.createClient(context.applicationContext)
-            aiRepository = if (client == null) MockAiGuidanceRepository() else SupabaseAiGuidanceRepository(client)
+            aiRepository = SupabaseAiGuidanceRepository(client)
             identity = za.co.devwell.data.auth.SupabaseIdentityRepository(client, scope)
             notificationRepository = if (client == null) {
                 PersistentNotificationRepository(context.applicationContext)
@@ -736,17 +601,17 @@ object AppContainer {
             )
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
             teamInsightsRepo = if (client == null) {
-                MockTeamInsightsRepository()
+                EmptyTeamInsightsRepository()
             } else {
                 SupabaseTeamInsightsRepository(client, identity.currentUser, managerRepo.managedTeam, scope)
             }
             projectRepository = if (client == null) {
-                MockProjectRepository()
+                EmptyProjectRepository()
             } else {
                 za.co.devwell.data.projects.SupabaseProjectRepository(client, scope)
             }
             adminRepository = if (client == null) {
-                MockAdminRepository()
+                EmptyAdminRepository()
             } else {
                 za.co.devwell.data.admin.SupabaseAdminRepository(client, identity.currentUser, scope)
             }
