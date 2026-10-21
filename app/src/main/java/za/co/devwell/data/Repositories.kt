@@ -727,7 +727,13 @@ object AppContainer {
             } else {
                 SupabaseNotificationRepository(client, identity.currentUser, context.applicationContext, scope)
             }
-            wellbeingRepo = SupabaseWellbeingRepository(client, identity.currentUser, scope)
+            wellbeingRepo = SupabaseWellbeingRepository(
+                client = client,
+                currentUser = identity.currentUser,
+                scope = scope,
+                queue = za.co.devwell.data.offline.OfflineDatabase.get(context).pendingCheckIns(),
+                scheduleSync = { za.co.devwell.data.offline.CheckInSyncScheduler.schedule(context) },
+            )
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
             teamInsightsRepo = if (client == null) {
                 MockTeamInsightsRepository()
