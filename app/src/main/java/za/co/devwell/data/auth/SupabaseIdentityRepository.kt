@@ -71,19 +71,27 @@ class SupabaseIdentityRepository(
         }
     }
 
-    override suspend fun signUp(name: String, email: String, password: String): String = accountLock.withLock {
+    override suspend fun signUp(name: String, email: String, password: String, role: SignupRole): String = accountLock.withLock {
         val supabase = connection()
         supabase.auth.awaitInitialization()
         supabase.auth.clearSession()
         supabase.auth.signUpWith(Email) {
             this.email = email.trim()
             this.password = password
-            // Names are user-editable metadata. Trusted roles must come from the database.
-            data = buildJsonObject { put("name", name.trim()) }
+            // The name and the requested role are metadata. The database grants the
+            // final role and never accepts admin from a signup.
+            data = buildJsonObject {
+                put("name", name.trim())
+                put("role", if (role == SignupRole.MANAGER) "manager" else "engineer")
+            }
         }
         if (supabase.auth.currentSessionOrNull() != null) {
             loadProfile()
-            "Account created. Choose your company and team."
+            if (role == SignupRole.MANAGER) {
+                "Account created. Create your company and first team to finish."
+            } else {
+                "Account created. Choose your company and team."
+            }
         } else {
             "Check your email to confirm your account, then return here and sign in."
         }
@@ -175,6 +183,25 @@ class SupabaseIdentityRepository(
         }
     }
 
+    /**
+     * Creates the manager's own company and first team. The server activates the
+     * account in the same transaction, so the profile is reloaded afterwards.
+     */
+    override suspend fun createManagerCompany(companyName: String, teamName: String) = accountLock.withLock {
+        val user = currentUser.value ?: error("Please sign in first.")
+        check(user.role == UserRole.MANAGER && !user.onboardingDone) {
+            "This account cannot create a company. Refresh your account status."
+        }
+        connection().functions.invoke("create-company", body = buildJsonObject {
+            put("company_name", companyName.trim())
+            put("team_name", teamName.trim())
+        })
+        loadProfile()
+        check(currentUser.value?.onboardingDone == true) {
+            "The company could not be confirmed. Refresh your account status before trying again."
+        }
+    }
+
     override suspend fun signOut() = accountLock.withLock {
         currentUser.value = null
         companies.value = emptyList()
@@ -189,7 +216,4 @@ class SupabaseIdentityRepository(
             supabase.auth.sessionManager.deleteSession()
         }
     }
-
-    override suspend fun registerCompany(name: String, emailDomain: String?): Company =
-        error("Company registration is managed by the administrator.")
 }

@@ -70,3 +70,11 @@ data class ReviewJoinRequestResult(
     @SerialName("request_id") val requestId: String,
     val status: String,
 )
+
+/** Success body of the create-team Edge Function. */
+@Serializable
+data class CreateTeamResult(
+    @SerialName("team_id") val teamId: String,
+    @SerialName("company_id") val companyId: String,
+    @SerialName("team_name") val teamName: String,
+)

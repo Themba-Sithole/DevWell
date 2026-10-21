@@ -9,6 +9,12 @@ import kotlinx.serialization.Serializable
 
 enum class UserRole { ENGINEER, MANAGER, ADMIN }
 
+/**
+ * The role a person asks for while registering. Only these two are selectable:
+ * the admin role is never granted from signup. The server decides the final role.
+ */
+enum class SignupRole { ENGINEER, MANAGER }
+
 enum class AccountStatus { PENDING, ACTIVE, REJECTED, SUSPENDED }
 
 enum class CompanyStatus { PENDING, ACTIVE }

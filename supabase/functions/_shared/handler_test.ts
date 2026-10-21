@@ -92,3 +92,43 @@ Deno.test("returns retryable failure when backend is unreachable", async () => {
   });
   equal((await handler(req({ company_id: id, team_id: id }))).status, 503);
 });
+Deno.test("create-company requires a company name and a first team name", async () => {
+  const handler = createHandler("create-company", config, identityOnly);
+  for (
+    const body of [
+      { company_name: "Acme" },
+      { team_name: "Platform" },
+      { company_name: "   ", team_name: "Platform" },
+      { company_name: "Acme", team_name: "" },
+      { company_name: "Acme", team_name: "Platform", role: "admin" },
+      { company_name: "x".repeat(151), team_name: "Platform" },
+    ]
+  ) {
+    equal((await handler(req(body))).status, 400);
+  }
+});
+Deno.test("create-company calls the manager company RPC with only expected arguments", async () => {
+  const calls: string[] = [];
+  const handler = createHandler("create-company", config, (url, init) => {
+    calls.push(String(url));
+    if (calls.length === 1) return Promise.resolve(json({ id }));
+    equal(JSON.parse(String(init?.body)), { p_company_name: "Acme", p_team_name: "Platform" });
+    return Promise.resolve(json({ company_id: id, team_id: id, status: "active" }));
+  });
+  const result = await handler(req({ company_name: "Acme", team_name: "Platform" }));
+  equal(result.status, 200);
+  equal(calls[1], `${config.url}/rest/v1/rpc/create_manager_company`);
+});
+Deno.test("create-team rejects extra fields and calls the team RPC", async () => {
+  const rejecting = createHandler("create-team", config, identityOnly);
+  equal((await rejecting(req({ team_name: "Platform", company_id: id }))).status, 400);
+  equal((await rejecting(req({ team_name: "Platform", role: "admin" }))).status, 400);
+  equal((await rejecting(req({ team_name: "" }))).status, 400);
+  const handler = createHandler("create-team", config, (url, init) => {
+    if (String(url).endsWith("/user")) return Promise.resolve(json({ id }));
+    equal(String(url), `${config.url}/rest/v1/rpc/create_team`);
+    equal(JSON.parse(String(init?.body)), { p_team_name: "Platform" });
+    return Promise.resolve(json({ team_id: id }));
+  });
+  equal((await handler(req({ team_name: "Platform" }))).status, 200);
+});

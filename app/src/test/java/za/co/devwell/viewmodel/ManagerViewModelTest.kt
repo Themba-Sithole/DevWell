@@ -204,6 +204,48 @@ class ManagerViewModelTest {
         assertNull(vm.ui.value.message)
     }
 
+    @Test fun managerCanSwitchBetweenTheTeamsTheyOwn() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+        assertEquals(2, vm.ui.value.teams.size)
+
+        vm.selectTeam("t2"); runCurrent()
+
+        assertEquals("t2", fake.selectedTeamId)
+    }
+
+    @Test fun creatingATeamPassesTheTrimmedNameAndConfirms() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.createTeam("  Web Team  "); runCurrent()
+
+        assertEquals(1, fake.createCalls)
+        assertEquals("Web Team", fake.createdTeamName)
+        assertEquals("Team created.", vm.ui.value.message)
+        assertFalse(vm.ui.value.creatingTeam)
+    }
+
+    @Test fun anEmptyTeamNameIsRejectedBeforeTheBackend() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.createTeam("   "); runCurrent()
+
+        assertEquals(0, fake.createCalls)
+        assertNotNull(vm.ui.value.error)
+    }
+
+    @Test fun aFailedTeamCreationShowsTheError() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.fail = true
+        val vm = model(fake); runCurrent()
+
+        vm.createTeam("Web Team"); runCurrent()
+
+        assertNotNull(vm.ui.value.error)
+        assertFalse(vm.ui.value.creatingTeam)
+    }
+
     private class FakeManager : ManagerRepository {
         override val joinRequests = MutableStateFlow(
             listOf(
@@ -213,10 +255,19 @@ class ManagerViewModelTest {
         )
         val team = MutableStateFlow<Team?>(Team("t1", "c1", "Mobile Team", managerId = "u2", memberCount = 8))
         override val managedTeam = team
+        override val managedTeams = MutableStateFlow(
+            listOf(
+                Team("t1", "c1", "Mobile Team", managerId = "u2", memberCount = 8),
+                Team("t2", "c1", "Web Team", managerId = "u2"),
+            )
+        )
 
         var fail = false
         var reviewCalls = 0
         var updateCalls = 0
+        var createCalls = 0
+        var selectedTeamId: String? = null
+        var createdTeamName: String? = null
         var waitForReview: CompletableDeferred<Unit>? = null
 
         override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) {
@@ -234,5 +285,17 @@ class ManagerViewModelTest {
             if (fail) error("Save failed")
             this.team.value = team
         }
+
+        override suspend fun selectTeam(teamId: String) {
+            selectedTeamId = teamId
+        }
+
+        override suspend fun createTeam(name: String) {
+            createCalls++
+            if (fail) error("Create failed")
+            createdTeamName = name
+        }
+
+        override suspend fun refresh() = Unit
     }
 }

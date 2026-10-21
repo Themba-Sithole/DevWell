@@ -42,7 +42,12 @@ interface AuthRepository {
     val currentUser: Flow<DevWellUser?>
     suspend fun restoreSession() {}
     suspend fun refreshProfile() {}
-    suspend fun signUp(name: String, email: String, password: String): String = error("Registration is unavailable")
+    /**
+     * Registers an account that asks for [role]. The server grants the final role:
+     * only engineer and manager can be requested, never admin.
+     */
+    suspend fun signUp(name: String, email: String, password: String, role: SignupRole): String =
+        error("Registration is unavailable")
     /** Updates the signed-in user's display name. Returns a confirmation message. */
     suspend fun updateName(name: String): String = error("Editing your profile is unavailable")
     /** Starts an email change. The new address applies once the confirmation link is opened. */
@@ -58,7 +63,8 @@ interface OnboardingRepository {
     val teams: Flow<List<Team>>
     suspend fun refreshDirectory() {}
     suspend fun submitEngineerJoinRequest(companyId: String, teamId: String)
-    suspend fun registerCompany(name: String, emailDomain: String?): Company
+    /** Creates the manager's own company and first team, and activates the account. */
+    suspend fun createManagerCompany(companyName: String, teamName: String)
 }
 interface WellbeingRepository {
     val checkIns: Flow<List<CheckIn>>
@@ -85,9 +91,18 @@ interface ProjectRepository {
 
 interface ManagerRepository {
     val joinRequests: Flow<List<JoinRequest>>
+    /** Every team the manager owns. */
+    val managedTeams: Flow<List<Team>>
+    /** The team currently being managed. */
     val managedTeam: Flow<Team?>
     suspend fun reviewJoinRequest(requestId: String, approve: Boolean)
     suspend fun updateTeamSettings(team: Team)
+    /** Switches the managed team so its requests and roster are shown. */
+    suspend fun selectTeam(teamId: String)
+    /** Creates another team in the manager's company and selects it. */
+    suspend fun createTeam(name: String)
+    /** Reloads the managed teams, for example after the manager creates their company. */
+    suspend fun refresh()
 }
 
 interface NotificationRepository {

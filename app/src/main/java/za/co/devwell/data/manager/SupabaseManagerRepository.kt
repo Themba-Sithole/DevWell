@@ -37,9 +37,12 @@ class SupabaseManagerRepository(
     private val settingsLive: Boolean = TEAM_SETTINGS_LIVE,
 ) : ManagerRepository {
     override val joinRequests = MutableStateFlow<List<JoinRequest>>(emptyList())
+    override val managedTeams = MutableStateFlow<List<Team>>(emptyList())
     override val managedTeam = MutableStateFlow<Team?>(null)
     private val lock = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
+    /** The team the manager is currently working in. */
+    private var selectedTeamId: String? = null
     private val teamColumns = if (settingsLive) {
         Columns.list("id", "company_id", "name", "manager_id", "timezone", "check_in_cadence", "low_wellbeing_threshold")
     } else Columns.list("id", "company_id", "name", "manager_id")
@@ -69,18 +72,21 @@ class SupabaseManagerRepository(
 
     private fun clear() {
         joinRequests.value = emptyList()
+        managedTeams.value = emptyList()
         managedTeam.value = null
+        selectedTeamId = null
     }
 
     private suspend fun load() {
         val supabase = connection()
         val uid = supabase.auth.currentUserOrNull()?.id ?: return clear()
-        // A manager may be assigned several teams; the screen shows one, so take the first by name.
-        val team = supabase.from("team").select(teamColumns) {
+        // A manager may own several teams; the screen shows one at a time.
+        val teams = supabase.from("team").select(teamColumns) {
             filter { eq("manager_id", uid) }
             order("name", Order.ASCENDING)
-            limit(1)
-        }.decodeList<ManagerTeamRow>().firstOrNull()?.toTeam()
+        }.decodeList<ManagerTeamRow>().map { it.toTeam() }
+        val team = teams.firstOrNull { it.id == selectedTeamId } ?: teams.firstOrNull()
+        selectedTeamId = team?.id
         // RLS also limits these rows to teams the caller may review.
         val requests = if (team == null) emptyList() else {
             supabase.from("join_request")
@@ -95,6 +101,7 @@ class SupabaseManagerRepository(
         // Pending names cover pending requests; roster names cover approved requesters who are now members.
         val names = roster.orEmpty().associate { it.userId to it.name } + pending.orEmpty().associate { it.userId to it.name }
         val previous = managedTeam.value?.takeIf { it.id == team?.id }
+        managedTeams.value = teams
         managedTeam.value = team?.let {
             if (roster == null) it.copy(memberCount = previous?.memberCount ?: 0, roster = previous?.roster)
             else it.copy(
@@ -103,6 +110,39 @@ class SupabaseManagerRepository(
             )
         }
         joinRequests.value = requests.map { it.toJoinRequest(names[it.userId]) }
+    }
+
+    override suspend fun selectTeam(teamId: String) = lock.withLock {
+        if (managedTeams.value.none { it.id == teamId }) return@withLock
+        selectedTeamId = teamId
+        load()
+    }
+
+    override suspend fun refresh() = lock.withLock { load() }
+
+    override suspend fun createTeam(name: String) = lock.withLock {
+        val trimmed = name.trim()
+        // The server checks the caller manages a company and that the name is free.
+        val response = try {
+            connection().functions.invoke("create-team", body = buildJsonObject {
+                put("team_name", trimmed)
+            })
+        } catch (error: RestException) {
+            throw readableCreateTeamError(error) ?: error
+        }
+        val result = json.decodeFromString<CreateTeamResult>(response.bodyAsText())
+        check(result.teamName == trimmed) { "The new team could not be confirmed. Refresh and try again." }
+        selectedTeamId = result.teamId
+        load()
+    }
+
+    // SDK 3.0.3 puts the raw response body in RestException.error. The function's 400/403/409 messages are written for users.
+    private fun readableCreateTeamError(error: RestException): IllegalStateException? {
+        if (error.statusCode !in setOf(400, 403, 409) || error.error.isBlank()) return null
+        val message = runCatching {
+            json.parseToJsonElement(error.error).jsonObject["error"]?.jsonPrimitive?.content
+        }.getOrNull()
+        return if (message.isNullOrBlank()) null else IllegalStateException(message, error)
     }
 
     private fun teamArg(teamId: String) = buildJsonObject { put("p_team_id", teamId) }
@@ -165,10 +205,12 @@ class SupabaseManagerRepository(
         check(saved.id == team.id) { "The team settings could not be confirmed. Refresh and try again." }
         // The RPC returns no roster, so keep the one already shown.
         val current = managedTeam.value
-        managedTeam.value = saved.toTeam().copy(
+        val updated = saved.toTeam().copy(
             memberCount = current?.memberCount ?: team.memberCount,
             roster = current?.roster ?: team.roster,
         )
+        managedTeam.value = updated
+        managedTeams.value = managedTeams.value.map { if (it.id == updated.id) updated else it }
     }
 
     // SDK 3.0.3 puts PostgREST's message in RestException.error. The RPC's PT400/PT403/PT409 messages are written for users.

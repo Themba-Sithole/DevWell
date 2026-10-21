@@ -47,6 +47,7 @@ import za.co.devwell.model.*
 import za.co.devwell.viewmodel.AuthViewModel
 import za.co.devwell.ui.admin.AdminHomeScreen
 import za.co.devwell.ui.auth.LoginScreen
+import za.co.devwell.ui.auth.ManagerOnboardingScreen
 import za.co.devwell.ui.auth.OnboardingScreen
 import za.co.devwell.ui.auth.PendingApprovalScreen
 import za.co.devwell.ui.engineer.CheckInScreen
@@ -111,6 +112,8 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
                 authViewModel::clearFeedback)
             EntryDestination.ONBOARDING -> OnboardingScreen(state, authViewModel::submitJoinRequest,
                 authViewModel::refreshDirectory, authViewModel::refreshProfile, authViewModel::signOut)
+            EntryDestination.MANAGER_ONBOARDING -> ManagerOnboardingScreen(state,
+                authViewModel::createManagerCompany, authViewModel::signOut)
             EntryDestination.PENDING -> PendingApprovalScreen(state, authViewModel::refreshProfile,
                 authViewModel::signOut)
             else -> {
@@ -389,6 +392,12 @@ private fun RoleApp(
                     onJoinRequests = { navController.navigate(Routes.JOIN_REQUESTS) },
                     onTeamSettings = { navController.navigate(Routes.TEAM_SETTINGS) },
                     alertThreshold = managerState.team?.lowWellbeingThreshold,
+                    teams = managerState.teams,
+                    selectedTeamId = managerState.team?.id,
+                    onSelectTeam = managerViewModel::selectTeam,
+                    onCreateTeam = managerViewModel::createTeam,
+                    creatingTeam = managerState.creatingTeam,
+                    teamError = managerState.error,
                 )
             }
             tabComposable(Routes.MANAGER_INSIGHTS) { ManagerInsightsScreen(aggregate) }

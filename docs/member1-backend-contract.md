@@ -67,14 +67,20 @@ All IDs below are UUIDs in production, represented as Kotlin strings.
 - company_id: nullable company foreign key; team_id: nullable team foreign key.
 - onboarding_done: non-null boolean.
 - New signup: role=engineer, status=pending, onboarding_done=false, no membership.
+- New signup as a manager: role=manager, status=pending, onboarding_done=false, no
+  membership. The manager chooses this on the registration screen.
 - Submitted request: status=pending, onboarding_done=true, selected membership IDs.
 - Approved: status=active, onboarding_done=true, correct company and team.
 - Rejected: status=rejected; keep onboarding_done=true so the account stays blocked.
-- Provision manager/admin accounts through trusted backend/admin operations only.
+- Manager who created their company: status=active, onboarding_done=true, company_id
+  set to the company they own and team_id set to the team they manage.
 
 Create each profile from trusted backend logic after Auth registration. A display name
-may come from user_metadata.name, but role/status/membership must never be trusted from
-user-editable metadata. The app refuses to enter a dashboard without a readable profile.
+may come from user_metadata.name. The role may be requested as engineer or manager from
+user_metadata.role, but the database accepts only those two values and falls back to
+engineer for anything else, so admin can never be claimed at signup. role/status/membership
+must never be trusted from user-editable metadata beyond that one choice. The app refuses
+to enter a dashboard without a readable profile.
 
 ### public.company
 
@@ -140,6 +146,43 @@ MockManagerRepository does not perform this live operation.
 The deployed review-join-request Edge Function accepts request_id and boolean approve.
 An active manager assigned to that team in the same company, or an active admin, may
 review it. Member 5 must connect the manager UI to this endpoint; Member 1 does not call it.
+
+## Manager registration contract (self-service company creation)
+
+A new account may register as a manager. The manager then creates the company that
+other engineers join. Two Edge Functions back this flow; both verify the caller's token
+with Supabase Auth, derive the user ID from that verified identity and forward the
+caller's token to Postgres. They accept no role, status or membership from the app.
+
+### Edge Function: create-company
+
+Method: POST /functions/v1/create-company.
+Request body contains only company_name and team_name:
+
+    {"company_name":"<company name>","team_name":"<first team name>"}
+
+The caller must be a manager whose profile is still pending and not yet onboarded.
+The function creates the company (status=active, so engineers can select it), creates
+the first team with manager_id=caller, and sets the caller's profile to
+company_id=that company, team_id=that team, status=active and onboarding_done=true in
+one transaction. A manager can only ever create one company: a second call returns 409.
+A non-manager caller returns 403 and an anonymous caller returns 401.
+
+### Edge Function: create-team
+
+Method: POST /functions/v1/create-team.
+Request body contains only team_name:
+
+    {"team_name":"<team name>"}
+
+The caller must be an active, onboarded manager with an active company. The team is
+created in that company with manager_id=caller, so the manager can review the join
+requests for it. A name that is already used in the company returns 409.
+
+Both functions expose a public RPC wrapper (public.create_manager_company and
+public.create_team) that performs no authorization of its own. The private helpers
+authorize auth.uid() independently, so calling the RPC directly cannot bypass those
+checks.
 
 ## Access rules and integration notes for the whole team
 

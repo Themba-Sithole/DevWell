@@ -35,8 +35,29 @@ class EntryDestinationTest {
             onboardingDone = false, status = AccountStatus.REJECTED)))
     }
     @Test fun incompletePrivilegedAccountWaitsForProvisioning() {
-        assertEquals(EntryDestination.PENDING, entryDestination(user(UserRole.MANAGER).copy(onboardingDone = false)))
         assertEquals(EntryDestination.PENDING, entryDestination(user(UserRole.ADMIN).copy(onboardingDone = false)))
+    }
+    @Test fun newManagerCreatesACompanyBeforeReachingTheDashboard() {
+        assertEquals(EntryDestination.MANAGER_ONBOARDING, entryDestination(user(UserRole.MANAGER).copy(
+            onboardingDone = false, status = AccountStatus.PENDING, companyId = null, teamId = null)))
+    }
+    @Test fun aManagerWhoCreatedACompanyReachesTheManagerDashboard() {
+        assertEquals(EntryDestination.MANAGER, entryDestination(user(UserRole.MANAGER).copy(
+            onboardingDone = true, status = AccountStatus.ACTIVE)))
+    }
+    @Test fun aRejectedOrSuspendedManagerNeverCreatesACompany() {
+        listOf(AccountStatus.REJECTED, AccountStatus.SUSPENDED).forEach { status ->
+            assertEquals(EntryDestination.PENDING, entryDestination(user(UserRole.MANAGER).copy(
+                onboardingDone = false, status = status)))
+        }
+    }
+    @Test fun companyAndTeamNamesAreValidated() {
+        assertNotNull(companyNameValidation("   "))
+        assertNotNull(companyNameValidation("x".repeat(COMPANY_NAME_MAX + 1)))
+        assertNull(companyNameValidation("Acme Software"))
+        assertNotNull(teamNameValidation(""))
+        assertNotNull(teamNameValidation("x".repeat(TEAM_NAME_MAX + 1)))
+        assertNull(teamNameValidation("Platform"))
     }
     @Test fun engineerWithoutMembershipCannotReachDashboard() {
         assertEquals(EntryDestination.ONBOARDING, entryDestination(user().copy(teamId = null)))

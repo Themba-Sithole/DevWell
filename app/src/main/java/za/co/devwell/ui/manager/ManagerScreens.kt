@@ -5,10 +5,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
@@ -500,6 +502,7 @@ fun JoinRequestsScreen(
     message: String? = null,
     onDismissFeedback: () -> Unit = {},
     onBack: () -> Unit = {},
+    teamName: String? = null,
 ) {
     val busy = reviewingId != null
     val listState = rememberLazyListState()
@@ -508,7 +511,14 @@ fun JoinRequestsScreen(
         modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { BackHeader("Join requests", "Engineers requesting access to your teams", onBack) }
+        item {
+            BackHeader(
+                "Join requests",
+                teamName?.let { "Engineers requesting access to $it" }
+                    ?: "Engineers requesting access to your teams",
+                onBack,
+            )
+        }
         if (error != null || message != null) {
             item { FeedbackCard(error, message, onDismissFeedback) }
         }
@@ -767,6 +777,7 @@ fun JoinRequestsRoute(viewModel: ManagerViewModel, onBack: () -> Unit = {}) {
         message = state.message,
         onDismissFeedback = viewModel::clearFeedback,
         onBack = onBack,
+        teamName = state.team?.name,
     )
 }
 
@@ -791,10 +802,18 @@ fun ManagerTeamScreen(
     onJoinRequests: () -> Unit,
     onTeamSettings: () -> Unit,
     alertThreshold: Double? = null,
+    teams: List<Team> = emptyList(),
+    selectedTeamId: String? = null,
+    onSelectTeam: (String) -> Unit = {},
+    onCreateTeam: (String) -> Unit = {},
+    creatingTeam: Boolean = false,
+    teamError: String? = null,
 ) {
     val safe = aggregate?.let { PrivacyPolicy.safeAggregateOrNull(it) }
     val bars = aggregate?.let { teamChartBars(it) }
     val listState = rememberLazyListState()
+    var showCreateTeam by remember { mutableStateOf(false) }
+    var newTeamName by remember { mutableStateOf("") }
 
     LazyColumn(
         state = listState,
@@ -802,6 +821,18 @@ fun ManagerTeamScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { PageTitle("Team Data", "Anonymised team insights only") }
+        if (teams.isNotEmpty()) {
+            item {
+                TeamSwitcher(
+                    teams = teams,
+                    selectedTeamId = selectedTeamId,
+                    creatingTeam = creatingTeam,
+                    error = teamError,
+                    onSelect = onSelectTeam,
+                    onCreate = { showCreateTeam = true },
+                )
+            }
+        }
         item {
             Row(
                 Modifier.fillMaxWidth()
@@ -905,6 +936,75 @@ fun ManagerTeamScreen(
         }
         item {
             PrivacyNotice("Managers can never open individual check-ins, personal notes or personal histories.")
+        }
+    }
+
+    if (showCreateTeam) {
+        DevWellDialog(
+            title = "New team",
+            subtitle = "Engineers can request to join this team and you approve each request.",
+            confirmLabel = if (creatingTeam) "Creating..." else "Create team",
+            confirmEnabled = !creatingTeam && newTeamName.isNotBlank(),
+            onConfirm = {
+                onCreateTeam(newTeamName)
+                showCreateTeam = false
+                newTeamName = ""
+            },
+            onDismiss = { showCreateTeam = false; newTeamName = "" },
+        ) {
+            DevWellTextField(
+                value = newTeamName,
+                onValueChange = { newTeamName = it },
+                label = "Team name",
+                placeholder = "Platform Engineering",
+                enabled = !creatingTeam,
+            )
+        }
+    }
+}
+
+/**
+ * Lets a manager move between the teams they own and add another one to their
+ * company. The selected team drives the join requests and roster shown.
+ */
+@Composable
+private fun TeamSwitcher(
+    teams: List<Team>,
+    selectedTeamId: String?,
+    creatingTeam: Boolean,
+    error: String?,
+    onSelect: (String) -> Unit,
+    onCreate: () -> Unit,
+) {
+    DevWellCard {
+        SectionLabel("Your teams")
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            teams.forEach { team ->
+                val selected = team.id == selectedTeamId
+                FilterChip(
+                    selected = selected,
+                    onClick = { onSelect(team.id) },
+                    label = { Text(team.name, style = MaterialTheme.typography.labelLarge) },
+                    leadingIcon = if (selected) {
+                        { Icon(Icons.Outlined.Check, null, Modifier.size(16.dp)) }
+                    } else null,
+                )
+            }
+            AssistChip(
+                onClick = onCreate,
+                enabled = !creatingTeam,
+                label = { Text(if (creatingTeam) "Creating..." else "New team") },
+                leadingIcon = { Icon(Icons.Outlined.Groups, null, Modifier.size(16.dp)) },
+            )
+        }
+        if (error != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(error, style = MaterialTheme.typography.bodySmall, color = RedText)
         }
     }
 }
