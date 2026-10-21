@@ -14,7 +14,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import za.co.devwell.data.MockProjectRepository
 import za.co.devwell.data.ProjectRepository
 import za.co.devwell.model.DevProject
 import za.co.devwell.model.ProjectTask
@@ -23,37 +22,29 @@ import za.co.devwell.model.TaskStatus
 class SupabaseProjectRepository(
     private val client: SupabaseClient,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
-    private val fallback: ProjectRepository = MockProjectRepository(),
 ) : ProjectRepository {
 
     private val _projects = MutableStateFlow<List<DevProject>>(emptyList())
     override val projects: Flow<List<DevProject>> = _projects.asStateFlow()
     private val writeLock = Mutex()
-    private var fallbackProjects: List<DevProject> = emptyList()
 
     init {
         scope.launch {
-            fallback.projects.collect { values ->
-                fallbackProjects = values
-                if (client.auth.currentUserOrNull() == null) _projects.value = values
-            }
-        }
-        scope.launch {
             try {
                 client.auth.sessionStatus.collect { status ->
-                    if (status is SessionStatus.Authenticated) loadProjects() else _projects.value = fallbackProjects
+                    if (status is SessionStatus.Authenticated) loadProjects() else _projects.value = emptyList()
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                _projects.value = fallbackProjects
+                _projects.value = emptyList()
             }
         }
     }
 
     private suspend fun loadProjects() = withContext(Dispatchers.IO) {
         val uid = client.auth.currentUserOrNull()?.id ?: run {
-            _projects.value = fallbackProjects
+            _projects.value = emptyList()
             return@withContext
         }
         val projectRows = client.from("project").select { filter { eq("user_id", uid) } }
@@ -74,7 +65,7 @@ class SupabaseProjectRepository(
 
     override suspend fun createProject(project: DevProject) = writeLock.withLock {
         val userId = client.auth.currentUserOrNull()?.id
-        if (userId == null) return@withLock fallback.createProject(project)
+        if (userId == null) return@withLock
         val row = ProjectInsertRow(
             userId = userId,
             name = project.name,
@@ -87,7 +78,7 @@ class SupabaseProjectRepository(
     }
 
     override suspend fun updateProject(project: DevProject) = writeLock.withLock {
-        if (client.auth.currentUserOrNull() == null) return@withLock fallback.updateProject(project)
+        if (client.auth.currentUserOrNull() == null) return@withLock
         if (project.id.isBlank()) return@withLock
         val patch = ProjectPatchRow(
             name = project.name,
@@ -102,7 +93,7 @@ class SupabaseProjectRepository(
     }
 
     override suspend fun deleteProject(projectId: String) = writeLock.withLock {
-        if (client.auth.currentUserOrNull() == null) return@withLock fallback.deleteProject(projectId)
+        if (client.auth.currentUserOrNull() == null) return@withLock
         if (projectId.isBlank()) return@withLock
         withContext(Dispatchers.IO) {
             client.from("project").delete { filter { eq("id", projectId) } }
@@ -111,7 +102,7 @@ class SupabaseProjectRepository(
     }
 
     override suspend fun addTask(projectId: String, task: ProjectTask) = writeLock.withLock {
-        if (client.auth.currentUserOrNull() == null) return@withLock fallback.addTask(projectId, task)
+        if (client.auth.currentUserOrNull() == null) return@withLock
         if (projectId.isBlank()) return@withLock
         val taskRows = withContext(Dispatchers.IO) {
             client.from("task")
@@ -132,7 +123,7 @@ class SupabaseProjectRepository(
     }
 
     override suspend fun updateTask(projectId: String, task: ProjectTask) = writeLock.withLock {
-        if (client.auth.currentUserOrNull() == null) return@withLock fallback.updateTask(projectId, task)
+        if (client.auth.currentUserOrNull() == null) return@withLock
         if (task.id.isBlank()) return@withLock
         val patch = ProjectTaskPatchRow(
             title = task.title,
@@ -150,7 +141,7 @@ class SupabaseProjectRepository(
     }
 
     override suspend fun deleteTask(projectId: String, taskId: String) = writeLock.withLock {
-        if (client.auth.currentUserOrNull() == null) return@withLock fallback.deleteTask(projectId, taskId)
+        if (client.auth.currentUserOrNull() == null) return@withLock
         if (taskId.isBlank()) return@withLock
         withContext(Dispatchers.IO) {
             client.from("task").delete {
@@ -161,7 +152,7 @@ class SupabaseProjectRepository(
     }
 
     override suspend fun toggleTask(projectId: String, taskId: String) = writeLock.withLock {
-        if (client.auth.currentUserOrNull() == null) return@withLock fallback.toggleTask(projectId, taskId)
+        if (client.auth.currentUserOrNull() == null) return@withLock
         val project = _projects.value.firstOrNull { it.id == projectId }
             ?: error("Project not found")
         val task = project.tasks.firstOrNull { it.id == taskId } ?: error("Task not found")

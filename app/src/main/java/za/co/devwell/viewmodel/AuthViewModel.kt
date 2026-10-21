@@ -10,11 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import za.co.devwell.BuildConfig
 import za.co.devwell.data.AppContainer
 import za.co.devwell.data.AuthRepository
 import za.co.devwell.data.OnboardingRepository
-import za.co.devwell.data.auth.PreviewIdentityRepository
 import za.co.devwell.model.*
 
 data class AuthUiState(
@@ -24,21 +22,16 @@ data class AuthUiState(
     val directoryLoading: Boolean = false,
     val error: String? = null,
     val message: String? = null,
-    val preview: Boolean = false,
     val companies: List<Company> = emptyList(),
     val teams: List<Team> = emptyList(),
 )
 
 class AuthViewModel(
-    private val realAuth: AuthRepository = AppContainer.auth,
-    private val realOnboarding: OnboardingRepository = AppContainer.onboarding,
-    private val allowPreview: Boolean = BuildConfig.DEBUG,
+    private val auth: AuthRepository = AppContainer.auth,
+    private val onboarding: OnboardingRepository = AppContainer.onboarding,
 ) : ViewModel() {
     private val state = MutableStateFlow(AuthUiState())
     val ui = state.asStateFlow()
-    private var auth = realAuth
-    private var onboarding = realOnboarding
-    private val preview = PreviewIdentityRepository()
     private var observer: Job? = null
     private var directoryJob: Job? = null
 
@@ -138,27 +131,9 @@ class AuthViewModel(
         directoryJob?.cancel()
         try { auth.signOut() }
         finally {
-            auth = realAuth
-            onboarding = realOnboarding
             state.update { AuthUiState(starting = false, busy = true) }
             observeRepositories()
         }
-    }
-
-    fun startPreview(role: UserRole, newEngineer: Boolean = false) {
-        if (!allowPreview) return
-        action {
-            realAuth.signOut()
-            auth = preview
-            onboarding = preview
-            state.update { it.copy(preview = true) }
-            if (newEngineer) preview.startOnboarding() else preview.demoLogin(role)
-            observeRepositories()
-        }
-    }
-
-    fun previewReview(approve: Boolean) {
-        if (allowPreview && state.value.preview) preview.review(approve)
     }
 
     private fun action(block: suspend () -> Unit) {

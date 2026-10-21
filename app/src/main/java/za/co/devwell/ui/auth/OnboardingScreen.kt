@@ -139,7 +139,7 @@ private fun SelectionCard(title: String, subtitle: String, selected: Boolean, en
 }
 
 @Composable
-fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: () -> Unit, onPreviewReview: (Boolean) -> Unit) {
+fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: () -> Unit) {
     val rejected = state.user?.status == AccountStatus.REJECTED
     val suspended = state.user?.status == AccountStatus.SUSPENDED
     val company = state.companies.find { it.id == state.user?.companyId }?.name
@@ -191,10 +191,5 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
         )
         if (!suspended) PrivacyNote("Your manager can approve your access from their DevWell dashboard.")
         TextButton(onClick = onSignOut, enabled = !state.busy) { Text("Sign out", color = AuthMuted) }
-        if (state.preview) {
-            Text("Student preview — sample data", color = AuthMuted, style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { onPreviewReview(true) }, enabled = !state.busy) { Text("Simulate approval") }
-            TextButton(onClick = { onPreviewReview(false) }, enabled = !state.busy) { Text("Simulate rejection") }
-        }
     }
 }

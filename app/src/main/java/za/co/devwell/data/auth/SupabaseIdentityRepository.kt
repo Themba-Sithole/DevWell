@@ -190,7 +190,6 @@ class SupabaseIdentityRepository(
         }
     }
 
-    override suspend fun demoLogin(role: UserRole) = error("Use the separate debug preview.")
     override suspend fun registerCompany(name: String, emailDomain: String?): Company =
         error("Company registration is managed by the administrator.")
 }

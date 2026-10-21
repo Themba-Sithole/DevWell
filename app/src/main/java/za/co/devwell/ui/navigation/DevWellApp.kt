@@ -108,20 +108,20 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
     ) { target ->
         when (target) {
             EntryDestination.LOGIN -> LoginScreen(state, authViewModel::signIn, authViewModel::signUp,
-                authViewModel::clearFeedback, authViewModel::startPreview)
+                authViewModel::clearFeedback)
             EntryDestination.ONBOARDING -> OnboardingScreen(state, authViewModel::submitJoinRequest,
                 authViewModel::refreshDirectory, authViewModel::refreshProfile, authViewModel::signOut)
             EntryDestination.PENDING -> PendingApprovalScreen(state, authViewModel::refreshProfile,
-                authViewModel::signOut, authViewModel::previewReview)
+                authViewModel::signOut)
             else -> {
                 // Keep the user for the duration of the outgoing cross-fade so sign-out
                 // does not tear down the protected graph mid-animation.
                 val activeUser = remember(target) { state.user }
                 if (activeUser != null) {
-                    key(activeUser.id, activeUser.role, state.preview) {
+                    key(activeUser.id, activeUser.role) {
                         // activeUser only pins the outgoing user so sign-out cannot tear
                         // down the graph mid-animation; state.user tracks live profile edits.
-                        RoleApp(viewModel, state.user ?: activeUser, authViewModel, state.preview)
+                        RoleApp(viewModel, state.user ?: activeUser, authViewModel)
                     }
                 }
             }
@@ -133,7 +133,6 @@ private fun RoleApp(
     viewModel: DevWellViewModel,
     user: DevWellUser,
     authViewModel: AuthViewModel,
-    preview: Boolean,
 ) {
     val onSignOut = authViewModel::signOut
     val account by authViewModel.ui.collectAsStateWithLifecycle()
@@ -188,10 +187,6 @@ private fun RoleApp(
 
     Scaffold(
         containerColor = Color.Transparent,
-        topBar = {
-            Text(if (preview) "Student preview - sample data" else "Student prototype - sample dashboard data",
-                modifier = Modifier.statusBarsPadding().padding(8.dp), style = MaterialTheme.typography.labelSmall)
-        },
         bottomBar = {
             if (showBottomBar && tabs.isNotEmpty()) {
                 Surface(
@@ -340,10 +335,9 @@ private fun RoleApp(
                     messages = chat.messages,
                     sending = chat.sending,
                     error = chat.error,
-                    liveAssistantAvailable = !preview && user.status == AccountStatus.ACTIVE,
-                    previewAssistantAvailable = preview,
-                    onSend = { text -> viewModel.sendAiMessage(text, preview) },
-                    onRetry = { viewModel.retryAi(preview) },
+                    liveAssistantAvailable = user.status == AccountStatus.ACTIVE,
+                    onSend = viewModel::sendAiMessage,
+                    onRetry = viewModel::retryAi,
                     onNewChat = viewModel::clearAiChat,
                 )
             }

@@ -153,25 +153,25 @@ class DevWellViewModel : ViewModel() {
     val aiChat: StateFlow<AiChatState> = _aiChat.asStateFlow()
 
     /** Appends the user's question, asks the assistant with the full context, then appends the reply. */
-    fun sendAiMessage(text: String, preview: Boolean = false) {
+    fun sendAiMessage(text: String) {
         val question = text.trim()
         if (question.isEmpty() || _aiChat.value.sending) return
         val history = _aiChat.value.messages +
             AiMessage(id = java.util.UUID.randomUUID().toString(), fromUser = true, text = question)
         _aiChat.value = _aiChat.value.copy(messages = history, sending = true, error = null)
-        askAiInternal(history, preview)
+        askAiInternal(history)
     }
 
     /** Re-sends the current transcript after a failure (the last turn is the user's question). */
-    fun retryAi(preview: Boolean = false) {
+    fun retryAi() {
         val state = _aiChat.value
         if (state.sending || state.messages.lastOrNull()?.fromUser != true) return
         _aiChat.value = state.copy(sending = true, error = null)
-        askAiInternal(state.messages, preview)
+        askAiInternal(state.messages)
     }
 
-    private fun askAiInternal(history: List<AiMessage>, preview: Boolean) = viewModelScope.launch {
-        val result = AppContainer.ai.ask(history, preview)
+    private fun askAiInternal(history: List<AiMessage>) = viewModelScope.launch {
+        val result = AppContainer.ai.ask(history)
         _aiChat.value = result.fold(
             onSuccess = { answer ->
                 _aiChat.value.copy(
