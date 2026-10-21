@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -39,8 +40,10 @@ fun EngineerHomeScreen(
     checkedInToday: Boolean = false,
 ) {
     val firstName = name.trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifEmpty { "there" }
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {

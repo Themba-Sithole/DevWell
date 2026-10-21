@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -76,8 +77,10 @@ private val TIPS = listOf(
 
 @Composable
 fun WellbeingTipsScreen(onBack: () -> Unit) {
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Well-being Tips", "Evidence-backed practices for developer health", onBack) }
@@ -183,8 +186,10 @@ private val EXERCISES = listOf(
 @Composable
 fun ExercisesScreen(onBack: () -> Unit) {
     var openIndex by rememberSaveable { mutableIntStateOf(-1) }
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Exercises & Guides", "Quick routines designed for desk-based engineers", onBack) }
@@ -277,8 +282,10 @@ private fun ExerciseCard(exercise: Exercise, expanded: Boolean, onClick: () -> U
 
 @Composable
 fun WhatMyManagerSeesScreen(onBack: () -> Unit, onManagerPreview: () -> Unit) {
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("What my manager sees", "How DevWell protects your data", onBack) }
@@ -524,8 +531,10 @@ private fun PolicyHeader(icon: ImageVector, subtitle: String, body: String) {
 /** Dedicated privacy policy page, opened from Help & about. */
 @Composable
 fun PrivacyPolicyScreen(onBack: () -> Unit = {}) {
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Privacy policy", "What DevWell stores and who can see it", onBack) }
@@ -594,8 +603,10 @@ fun PrivacyPolicyScreen(onBack: () -> Unit = {}) {
 @Composable
 fun TermsOfServiceScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Terms of service", "Using DevWell responsibly", onBack) }
@@ -689,9 +700,11 @@ fun HelpAboutScreen(
     val context = LocalContext.current
     var openFaq by rememberSaveable { mutableIntStateOf(-1) }
     var acknowledgementsOpen by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding(),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { BackHeader("Help & about", "Support, policies and app details", onBack) }

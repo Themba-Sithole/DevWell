@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import za.co.devwell.R
 import za.co.devwell.ui.components.DevWellTextField
+import za.co.devwell.ui.components.devWellScrollbar
 import za.co.devwell.ui.theme.*
 import za.co.devwell.viewmodel.AuthUiState
 
@@ -52,6 +53,7 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    val pageScroll = rememberScrollState()
     fun changePage(next: String) {
         page = next
         password = ""
@@ -80,7 +82,8 @@ fun LoginScreen(
         } else {
             val registering = current == "register"
             Column(Modifier.fillMaxSize().background(Color.White).imePadding()
-                .verticalScroll(rememberScrollState())) {
+                .devWellScrollbar(pageScroll)
+                .verticalScroll(pageScroll)) {
             Column(
                 Modifier.fillMaxWidth()
                     .background(Brush.verticalGradient(LoginGradient))

@@ -3,6 +3,7 @@ package za.co.devwell.ui.admin
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Password
@@ -31,8 +32,10 @@ fun AdminHomeScreen(
     onDismissError: () -> Unit,
     onSetUserStatus: (String, Boolean) -> Unit,
 ) {
+    val listState = rememberLazyListState()
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(20.dp).devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { PageTitle("Platform administration", "Manage accounts and platform access") }
