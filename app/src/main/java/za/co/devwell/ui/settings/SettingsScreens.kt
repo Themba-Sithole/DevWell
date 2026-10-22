@@ -1,6 +1,5 @@
 package za.co.devwell.ui.settings
 
-import android.app.TimePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -132,20 +131,14 @@ fun ProfileScreen(
                 subtitle = "Nudge me at my usual check-in time",
             )
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                enabled = dailyReminderEnabled,
-                onClick = {
-                    val time = prefs?.reminderTime ?: "09:00"
-                    val parts = time.split(":")
-                    val hour = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 9
-                    val minute = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
-                    TimePickerDialog(context, { _, selectedHour, selectedMinute ->
-                        onReminderTimeChange("%02d:%02d".format(selectedHour, selectedMinute))
-                    }, hour, minute, false).show()
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Daily reminder: ${prefs?.reminderTime ?: "09:00"}")
+            AnimatedVisibility(visible = dailyReminderEnabled) {
+                DevWellTimeField(
+                    value = prefs?.reminderTime ?: "09:00",
+                    onTimeSelected = onReminderTimeChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "Reminder time",
+                    fallback = LocalTime.of(9, 0),
+                )
             }
         }
         if (role == UserRole.ENGINEER) {
