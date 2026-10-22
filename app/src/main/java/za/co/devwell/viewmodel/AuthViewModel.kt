@@ -171,7 +171,10 @@ internal fun friendlyError(error: Exception): String = when (error) {
         "email_not_confirmed" -> "Confirm your email before signing in."
         "user_already_exists", "email_exists" -> EMAIL_ALREADY_REGISTERED
         "weak_password" -> "Choose a stronger password with at least 8 characters."
-        "over_email_send_rate_limit", "over_request_rate_limit" -> "Too many attempts. Wait a moment and try again."
+        "over_email_send_rate_limit" -> "The email service has hit its hourly limit. Wait about an hour and try again."
+        "over_request_rate_limit" -> "Too many attempts. Wait a moment and try again."
+        "email_address_not_authorized" -> "This project cannot deliver confirmation emails to that address yet. Ask the team to finish the email setup."
+        "email_address_invalid" -> "That email address cannot receive mail. Check the spelling or use a different address."
         "PGRST205", "42P01", "PGRST204", "42703" -> "The team is still setting up the database. Please try again when it is ready."
         "42501" -> "Your account does not have permission for this action. Contact the team."
         else -> "The request could not be completed. Check your details or try again later."
