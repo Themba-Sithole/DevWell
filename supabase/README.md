@@ -20,6 +20,12 @@ Deployed to project `whtsjwiqcesngltfghyb` on 25 September 2026.
   so engineers can select it.
 - `create-team` lets an active manager add another team to their company. A manager can
   only ever own one company, and only teams inside it.
+- `remove_team_member` and `delete_team` let an active manager administer only the teams
+  they created. Removing a member, or deleting the team, clears that engineer's placement
+  and approved request and sets the profile back to onboarding, so the engineer must
+  choose a company and team again before using the app. Deleting a team also removes its
+  join requests; the manager's own profile moves to another team they own, or to none.
+  Admins cannot use these two RPCs; they use the admin company/team CRUD instead.
 - Identical retries are idempotent. A profile lock serializes concurrent submissions.
 
 Both deployed functions have `verify_jwt=true` and also verify identity through Auth.

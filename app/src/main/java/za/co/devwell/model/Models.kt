@@ -44,6 +44,12 @@ data class Company(
     val status: CompanyStatus = CompanyStatus.ACTIVE,
 )
 
+/** One active engineer on a team. The manager sees the name only, never wellbeing data. */
+data class TeamMember(
+    val userId: String,
+    val name: String,
+)
+
 data class Team(
     val id: String,
     val companyId: String,
@@ -53,8 +59,8 @@ data class Team(
     val checkInCadence: String? = "Daily",
     val lowWellbeingThreshold: Double? = 2.0,
     val memberCount: Int = 0,
-    /** Active member names only (team_roster). null = not loaded; empty = no members. Never wellbeing data. */
-    val roster: List<String>? = null,
+    /** Active members only (team_roster). null = not loaded; empty = no members. Never wellbeing data. */
+    val roster: List<TeamMember>? = null,
 )
 
 data class JoinRequest(

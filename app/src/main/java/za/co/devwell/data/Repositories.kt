@@ -99,6 +99,10 @@ interface ManagerRepository {
     suspend fun selectTeam(teamId: String)
     /** Creates another team in the manager's company and selects it. */
     suspend fun createTeam(name: String)
+    /** Removes an engineer from a team the manager created; they must choose a team again. */
+    suspend fun removeMember(teamId: String, userId: String)
+    /** Deletes a team the manager created; its engineers must choose a team again. */
+    suspend fun deleteTeam(teamId: String)
     /** Reloads the managed teams, for example after the manager creates their company. */
     suspend fun refresh()
 }

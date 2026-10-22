@@ -22,6 +22,8 @@ data class ManagerUiState(
     val reviewingId: String? = null,      // request currently being approved/declined
     val savingSettings: Boolean = false,
     val creatingTeam: Boolean = false,
+    val removingMemberId: String? = null, // roster member currently being removed
+    val deletingTeam: Boolean = false,
     val error: String? = null,
     val message: String? = null,
 )
@@ -126,6 +128,46 @@ class ManagerViewModel(private val repository: ManagerRepository) : ViewModel() 
                 state.update { it.copy(error = friendlyError(error)) }
             } finally {
                 state.update { it.copy(creatingTeam = false) }
+            }
+        }
+    }
+
+    /** Removes an engineer from the managed team; they must choose a company and team again. */
+    fun removeMember(userId: String) {
+        val team = state.value.team ?: return
+        if (state.value.removingMemberId != null || state.value.deletingTeam) return
+        state.update { it.copy(removingMemberId = userId, error = null, message = null) }
+        viewModelScope.launch {
+            try {
+                repository.removeMember(team.id, userId)
+                state.update { it.copy(message = "Member removed. They must choose a company and team again.") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            } finally {
+                state.update { it.copy(removingMemberId = null) }
+            }
+        }
+    }
+
+    /** Deletes the managed team; its engineers must choose a company and team again. */
+    fun deleteTeam() {
+        val team = state.value.team ?: return
+        if (state.value.deletingTeam || state.value.removingMemberId != null) return
+        state.update { it.copy(deletingTeam = true, error = null, message = null) }
+        viewModelScope.launch {
+            try {
+                repository.deleteTeam(team.id)
+                state.update {
+                    it.copy(message = "Team deleted. Its members must choose a company and team again.")
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                state.update { it.copy(error = friendlyError(error)) }
+            } finally {
+                state.update { it.copy(deletingTeam = false) }
             }
         }
     }

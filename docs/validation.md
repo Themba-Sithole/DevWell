@@ -1,6 +1,7 @@
 # Android verification
 
 Date: 23 September 2026. Manager registration added and re-verified on 21 October 2026.
+Manager team administration added on 22 October 2026.
 
 ## Manager registration verification (21 October 2026)
 
@@ -30,6 +31,27 @@ Date: 23 September 2026. Manager registration added and re-verified on 21 Octobe
   network, so a new engineer account could not be created from the app during the
   check. The engineer's join request and the manager's approval were covered by the
   HTTP checks above instead.
+
+## Manager team administration verification (22 October 2026)
+
+- `supabase/tests/manager_team_administration.sql` covers ownership rules, denial for
+  engineers, admins, same-company colleagues and cross-company managers, member removal,
+  deletion of teams with active/pending/rejected engineers, request cleanup, and the
+  manager's move to a remaining team (or none). All SQL test files pass on a fresh
+  `supabase db reset`.
+- 189 JVM unit tests across 22 suites passed, including roster user IDs, remove-member
+  and delete-team repository calls, user-facing server errors, a failed reload after
+  deletion, and the new view-model states.
+- The migration was applied to the live project with a scoped `supabase db push`
+  (only `20261022140000_member1_manager_team_administration.sql`); the other pending
+  migrations remain pending.
+- On the emulator against the live project, a temporary manager saw both engineers in
+  Team settings, removing one showed the confirmation and the "must choose a company and
+  team again" message, and the removed engineer's live profile became pending/onboarding.
+  Deleting the team cleared it for the remaining engineer, kept the manager's company,
+  and showed the Team Data empty state with Create team. Signing in as the removed
+  engineer then opened the 3-step company/team onboarding instead of the dashboard.
+  Temporary accounts and company were removed afterwards.
 
 ## Environment
 

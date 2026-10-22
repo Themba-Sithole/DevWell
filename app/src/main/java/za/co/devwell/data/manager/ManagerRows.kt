@@ -78,3 +78,15 @@ data class CreateTeamResult(
     @SerialName("company_id") val companyId: String,
     @SerialName("team_name") val teamName: String,
 )
+
+/** Success body of public.remove_team_member. */
+@Serializable
+data class RemoveTeamMemberResult(
+    val removed: Boolean = false,
+)
+
+/** Success body of public.delete_team. */
+@Serializable
+data class DeleteTeamResult(
+    val deleted: Boolean = false,
+)

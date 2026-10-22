@@ -208,6 +208,8 @@ class AuthViewModelTest {
         override suspend fun updateTeamSettings(team: Team) = Unit
         override suspend fun selectTeam(teamId: String) = Unit
         override suspend fun createTeam(name: String) = Unit
+        override suspend fun removeMember(teamId: String, userId: String) = Unit
+        override suspend fun deleteTeam(teamId: String) = Unit
         override suspend fun refresh() { refreshes++ }
     }
 }

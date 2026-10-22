@@ -184,6 +184,25 @@ public.create_team) that performs no authorization of its own. The private helpe
 authorize auth.uid() independently, so calling the RPC directly cannot bypass those
 checks.
 
+### Manager team administration (direct RPCs)
+
+An active, onboarded manager can administer only a team whose manager_id is their own
+account and whose company is active and matches their profile. Admins are deliberately
+excluded; admin company/team CRUD is a separate surface.
+
+- `public.remove_team_member(p_team_id, p_user_id)` removes an active engineer from that
+  team. It clears company_id, team_id, sets status=pending and onboarding_done=false, and
+  deletes the engineer's approved request for the team. Their account and private
+  check-ins stay; they must choose a company and team again and be approved to rejoin.
+- `public.delete_team(p_team_id)` deletes the team. Active and pending engineers on it are
+  reset the same way; a rejected engineer keeps status=rejected but loses the now-dangling
+  placement. All join requests for the team are deleted. The manager's profile moves to
+  another team they own in the same company, or team_id becomes null when none remains.
+- Both run in one transaction, lock affected profiles before the team (the same order as
+  join-request review), and return 400/401/403/404 SQLSTATE PT4xx messages written for
+  the app. Only the SECURITY INVOKER wrappers are exposed, and only `authenticated` may
+  execute them.
+
 ## Access rules and integration notes for the whole team
 
 - Enable RLS on every exposed table and add only necessary Data API grants. A table

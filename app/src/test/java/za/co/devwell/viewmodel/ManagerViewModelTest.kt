@@ -246,6 +246,51 @@ class ManagerViewModelTest {
         assertFalse(vm.ui.value.creatingTeam)
     }
 
+    @Test fun removingAMemberConfirmsAndClearsTheRoster() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.removeMember("u1"); runCurrent()
+
+        assertEquals("t1", fake.removeTeamId)
+        assertEquals("u1", fake.removedUserId)
+        assertEquals("Member removed. They must choose a company and team again.", vm.ui.value.message)
+        assertNull(vm.ui.value.removingMemberId)
+    }
+
+    @Test fun aFailedRemovalShowsTheError() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.fail = true
+        val vm = model(fake); runCurrent()
+
+        vm.removeMember("u1"); runCurrent()
+
+        assertNotNull(vm.ui.value.error)
+        assertNull(vm.ui.value.removingMemberId)
+    }
+
+    @Test fun deletingATeamConfirmsAndMovesToTheRemainingTeam() = runTest(dispatcher) {
+        val fake = FakeManager()
+        val vm = model(fake); runCurrent()
+
+        vm.deleteTeam(); runCurrent()
+
+        assertEquals("t1", fake.deletedTeamId)
+        assertEquals("t2", vm.ui.value.team?.id)
+        assertEquals("Team deleted. Its members must choose a company and team again.", vm.ui.value.message)
+        assertFalse(vm.ui.value.deletingTeam)
+    }
+
+    @Test fun aFailedDeletionShowsTheError() = runTest(dispatcher) {
+        val fake = FakeManager(); fake.fail = true
+        val vm = model(fake); runCurrent()
+
+        vm.deleteTeam(); runCurrent()
+
+        assertNotNull(vm.ui.value.error)
+        assertFalse(vm.ui.value.deletingTeam)
+        assertEquals("t1", vm.ui.value.team?.id)
+    }
+
     private class FakeManager : ManagerRepository {
         override val joinRequests = MutableStateFlow(
             listOf(
@@ -268,6 +313,9 @@ class ManagerViewModelTest {
         var createCalls = 0
         var selectedTeamId: String? = null
         var createdTeamName: String? = null
+        var removeTeamId: String? = null
+        var removedUserId: String? = null
+        var deletedTeamId: String? = null
         var waitForReview: CompletableDeferred<Unit>? = null
 
         override suspend fun reviewJoinRequest(requestId: String, approve: Boolean) {
@@ -294,6 +342,21 @@ class ManagerViewModelTest {
             createCalls++
             if (fail) error("Create failed")
             createdTeamName = name
+        }
+
+        override suspend fun removeMember(teamId: String, userId: String) {
+            removeTeamId = teamId
+            if (fail) error("Remove failed")
+            removedUserId = userId
+            team.value = team.value?.copy(roster = team.value?.roster?.filterNot { it.userId == userId })
+        }
+
+        override suspend fun deleteTeam(teamId: String) {
+            if (fail) error("Delete failed")
+            deletedTeamId = teamId
+            val remaining = managedTeams.value.filterNot { it.id == teamId }
+            managedTeams.value = remaining
+            team.value = remaining.firstOrNull()
         }
 
         override suspend fun refresh() = Unit

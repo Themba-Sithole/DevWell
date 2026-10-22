@@ -311,7 +311,8 @@ class SupabaseManagerRepositoryTest {
             assertTrue(requests.all { it.userEmail.isEmpty() })
             val loaded = repo.managedTeam.value!!
             assertEquals(2, loaded.memberCount)
-            assertEquals(listOf("Lee Adams", "Sam Peters"), loaded.roster)
+            assertEquals(listOf("Lee Adams", "Sam Peters"), loaded.roster?.map { it.name })
+            assertEquals(listOf("u3", "u1"), loaded.roster?.map { it.userId })
             for (path in listOf("/rest/v1/rpc/pending_join_requesters", "/rest/v1/rpc/team_roster")) {
                 val (method, body) = rpcCalls[path] ?: error("$path was not called")
                 assertEquals(HttpMethod.Post, method)
@@ -383,8 +384,154 @@ class SupabaseManagerRepositoryTest {
             signIn(client)
             val loaded = awaitValue(repo.managedTeam) { it != null }!!
             assertEquals(0, loaded.memberCount)
-            assertEquals(emptyList<String>(), loaded.roster)
+            assertEquals(emptyList<TeamMember>(), loaded.roster)
             assertEquals("No members yet", memberCountLabel(loaded.memberCount, known = loaded.roster != null))
+        } finally { client.close() }
+    }
+
+    @Test fun removeMemberSendsTeamAndUserThenReloadsTheRoster() = runTest {
+        var removeBody: String? = null
+        var rosterCalls = 0
+        val client = client(MockEngine { request ->
+            when (val path = request.url.encodedPath) {
+                "/auth/v1/token" -> json(token)
+                "/rest/v1/team" -> json(team)
+                "/rest/v1/join_request" -> json("[]")
+                "/rest/v1/rpc/pending_join_requesters" -> json("[]")
+                "/rest/v1/rpc/team_roster" -> { rosterCalls++; json(roster) }
+                "/rest/v1/rpc/remove_team_member" -> {
+                    removeBody = bodyText(request)
+                    json("""{"removed":true,"user_id":"u1"}""")
+                }
+                else -> error("Unexpected request: $path")
+            }
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            awaitValue(repo.managedTeam) { it != null }
+            val callsBefore = rosterCalls
+            repo.removeMember("t1", "u1")
+            val sent = Json.parseToJsonElement(removeBody!!).jsonObject
+            assertEquals(setOf("p_team_id", "p_user_id"), sent.keys)
+            assertEquals("\"t1\"", sent["p_team_id"].toString())
+            assertEquals("\"u1\"", sent["p_user_id"].toString())
+            assertTrue("The roster was not reloaded", rosterCalls > callsBefore)
+        } finally { client.close() }
+    }
+
+    @Test fun removeMemberShowsTheServerMessage() = runTest {
+        val client = client(MockEngine { request ->
+            when (val path = request.url.encodedPath) {
+                "/auth/v1/token" -> json(token)
+                "/rest/v1/team" -> json(team)
+                "/rest/v1/join_request" -> json("[]")
+                "/rest/v1/rpc/pending_join_requesters" -> json("[]")
+                "/rest/v1/rpc/team_roster" -> json(roster)
+                "/rest/v1/rpc/remove_team_member" -> respond(
+                    """{"code":"PT404","message":"That member is no longer on this team.","details":null,"hint":null}""",
+                    HttpStatusCode.NotFound,
+                    headersOf("Content-Type", "application/json"),
+                )
+                else -> error("Unexpected request: $path")
+            }
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            awaitValue(repo.managedTeam) { it != null }
+            val error = runCatching { repo.removeMember("t1", "u1") }.exceptionOrNull()
+            assertTrue("Expected IllegalStateException but got $error", error is IllegalStateException)
+            assertEquals("That member is no longer on this team.", friendlyError(error as Exception))
+            assertEquals("u1", repo.managedTeam.value!!.roster?.first { it.userId == "u1" }?.userId)
+        } finally { client.close() }
+    }
+
+    @Test fun deleteTeamSendsTeamIdAndSelectsTheNextTeam() = runTest {
+        var deleteBody: String? = null
+        var deleted = false
+        val twoTeams = """[{"id":"t1","company_id":"c1","name":"Mobile","manager_id":"m1"},{"id":"t2","company_id":"c1","name":"Web","manager_id":"m1"}]"""
+        val onlyWeb = """[{"id":"t2","company_id":"c1","name":"Web","manager_id":"m1"}]"""
+        val client = client(MockEngine { request ->
+            when (val path = request.url.encodedPath) {
+                "/auth/v1/token" -> json(token)
+                "/rest/v1/team" -> json(if (deleted) onlyWeb else twoTeams)
+                "/rest/v1/join_request" -> json("[]")
+                "/rest/v1/rpc/pending_join_requesters" -> json("[]")
+                "/rest/v1/rpc/team_roster" -> json("[]")
+                "/rest/v1/rpc/delete_team" -> {
+                    deleteBody = bodyText(request)
+                    deleted = true
+                    json("""{"deleted":true}""")
+                }
+                else -> error("Unexpected request: $path")
+            }
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            assertEquals("t1", awaitValue(repo.managedTeam) { it != null }?.id)
+            repo.deleteTeam("t1")
+            val sent = Json.parseToJsonElement(deleteBody!!).jsonObject
+            assertEquals(setOf("p_team_id"), sent.keys)
+            assertEquals("\"t1\"", sent["p_team_id"].toString())
+            assertEquals(listOf("t2"), repo.managedTeams.value.map { it.id })
+            assertEquals("t2", repo.managedTeam.value?.id)
+        } finally { client.close() }
+    }
+
+    @Test fun deleteTeamDropsItEvenWhenTheReloadFails() = runTest {
+        var deleted = false
+        val client = client(MockEngine { request ->
+            when (val path = request.url.encodedPath) {
+                "/auth/v1/token" -> json(token)
+                "/rest/v1/team" -> if (deleted) respond(
+                    """{"message":"Server error"}""",
+                    HttpStatusCode.InternalServerError,
+                    headersOf("Content-Type", "application/json"),
+                ) else json(team)
+                "/rest/v1/join_request" -> json("[]")
+                "/rest/v1/rpc/pending_join_requesters" -> json("[]")
+                "/rest/v1/rpc/team_roster" -> json("[]")
+                "/rest/v1/rpc/delete_team" -> { deleted = true; json("""{"deleted":true}""") }
+                else -> error("Unexpected request: $path")
+            }
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            awaitValue(repo.managedTeam) { it != null }
+            val error = runCatching { repo.deleteTeam("t1") }.exceptionOrNull()
+            assertNull("Expected no error but got $error", error)
+            assertTrue(repo.managedTeams.value.none { it.id == "t1" })
+            assertNull(repo.managedTeam.value)
+        } finally { client.close() }
+    }
+
+    @Test fun deleteTeamShowsTheServerMessage() = runTest {
+        val client = client(MockEngine { request ->
+            when (val path = request.url.encodedPath) {
+                "/auth/v1/token" -> json(token)
+                "/rest/v1/team" -> json(team)
+                "/rest/v1/join_request" -> json("[]")
+                "/rest/v1/rpc/pending_join_requesters" -> json("[]")
+                "/rest/v1/rpc/team_roster" -> json("[]")
+                "/rest/v1/rpc/delete_team" -> respond(
+                    """{"code":"PT403","message":"You can only delete a team you created.","details":null,"hint":null}""",
+                    HttpStatusCode.Forbidden,
+                    headersOf("Content-Type", "application/json"),
+                )
+                else -> error("Unexpected request: $path")
+            }
+        })
+        try {
+            val repo = SupabaseManagerRepository(client, backgroundScope)
+            signIn(client)
+            awaitValue(repo.managedTeam) { it != null }
+            val error = runCatching { repo.deleteTeam("t1") }.exceptionOrNull()
+            assertTrue("Expected IllegalStateException but got $error", error is IllegalStateException)
+            assertEquals("You can only delete a team you created.", friendlyError(error as Exception))
+            assertEquals("t1", repo.managedTeam.value?.id)
         } finally { client.close() }
     }
 

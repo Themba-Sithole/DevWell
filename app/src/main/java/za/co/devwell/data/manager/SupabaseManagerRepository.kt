@@ -106,7 +106,9 @@ class SupabaseManagerRepository(
             if (roster == null) it.copy(memberCount = previous?.memberCount ?: 0, roster = previous?.roster)
             else it.copy(
                 memberCount = roster.size,
-                roster = roster.map { m -> m.name?.takeIf(String::isNotBlank) ?: placeholderName(m.userId) }.sorted(),
+                roster = roster.map { m ->
+                    TeamMember(m.userId, m.name?.takeIf(String::isNotBlank) ?: placeholderName(m.userId))
+                }.sortedBy { it.name },
             )
         }
         joinRequests.value = requests.map { it.toJoinRequest(names[it.userId]) }
@@ -216,6 +218,60 @@ class SupabaseManagerRepository(
     // SDK 3.0.3 puts PostgREST's message in RestException.error. The RPC's PT400/PT403/PT409 messages are written for users.
     private fun readableSettingsError(error: RestException): IllegalStateException? {
         if (error.statusCode !in setOf(400, 403, 409) || error.error.isBlank()) return null
+        return IllegalStateException(error.error, error)
+    }
+
+    override suspend fun removeMember(teamId: String, userId: String) = lock.withLock {
+        // The server checks that the caller owns the team and that the user is still an active member.
+        try {
+            val result = connection().postgrest.rpc("remove_team_member", buildJsonObject {
+                put("p_team_id", teamId)
+                put("p_user_id", userId)
+            }).decodeAs<RemoveTeamMemberResult>()
+            check(result.removed) { "The member could not be removed. Refresh and try again." }
+        } catch (error: RestException) {
+            throw readableTeamAdminError(error) ?: error
+        }
+        try {
+            load()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The removal is already saved; a failed reload only leaves the roster stale until the next load.
+        }
+    }
+
+    override suspend fun deleteTeam(teamId: String) = lock.withLock {
+        // The server checks that the caller owns the team and resets its engineers in one transaction.
+        try {
+            val result = connection().postgrest.rpc("delete_team", buildJsonObject {
+                put("p_team_id", teamId)
+            }).decodeAs<DeleteTeamResult>()
+            check(result.deleted) { "The team could not be deleted. Refresh and try again." }
+        } catch (error: RestException) {
+            throw readableTeamAdminError(error) ?: error
+        }
+        // Drop the deleted team locally first so a failed reload cannot resurrect it, then
+        // let load() choose another team the manager still owns (or none).
+        val wasSelected = managedTeam.value?.id == teamId
+        managedTeams.value = managedTeams.value.filterNot { it.id == teamId }
+        if (wasSelected) {
+            managedTeam.value = null
+            joinRequests.value = emptyList()
+        }
+        selectedTeamId = null
+        try {
+            load()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The deletion is already saved; the next successful load repopulates the remaining teams.
+        }
+    }
+
+    // PT404 covers a member or team that was already removed/deleted, so a retry is harmless.
+    private fun readableTeamAdminError(error: RestException): IllegalStateException? {
+        if (error.statusCode !in setOf(400, 403, 404, 409) || error.error.isBlank()) return null
         return IllegalStateException(error.error, error)
     }
 }

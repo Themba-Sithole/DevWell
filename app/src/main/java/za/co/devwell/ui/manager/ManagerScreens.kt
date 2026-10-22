@@ -45,6 +45,7 @@ import za.co.devwell.model.JoinRequestStatus
 import za.co.devwell.model.PrivacyPolicy
 import za.co.devwell.model.Team
 import za.co.devwell.model.TeamAggregate
+import za.co.devwell.model.TeamMember
 import za.co.devwell.ui.auth.AuthFeedback
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
@@ -627,12 +628,19 @@ fun TeamSettingsScreen(
     message: String? = null,
     onDismissFeedback: () -> Unit = {},
     onBack: () -> Unit = {},
+    removingMemberId: String? = null,
+    deletingTeam: Boolean = false,
+    onRemoveMember: (userId: String) -> Unit = {},
+    onDeleteTeam: () -> Unit = {},
 ) {
     if (team == null) {
         Column(Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding()) {
             BackHeader("Team settings", null, onBack)
             Spacer(Modifier.height(12.dp))
-            Text("No managed team loaded.", color = InkMuted)
+            Text(
+                "You don't manage any teams yet. Create one from Team Data.",
+                color = InkMuted,
+            )
         }
         return
     }
@@ -640,6 +648,9 @@ fun TeamSettingsScreen(
     var threshold by remember(team.id) {
         mutableDoubleStateOf(team.lowWellbeingThreshold?.takeIf { it in TeamSettingsRules.THRESHOLD_RANGE } ?: 2.0)
     }
+    var memberToRemove by remember(team.id) { mutableStateOf<TeamMember?>(null) }
+    var confirmDelete by remember(team.id) { mutableStateOf(false) }
+    val busy = saving || deletingTeam || removingMemberId != null
     val nameTooLong = teamNameTooLong(name, team.name)
     // Called from input callbacks only (not on recomposition): editing hides an old error or "saved" message.
     fun edited() { if (error != null || message != null) onDismissFeedback() }
@@ -726,14 +737,39 @@ fun TeamSettingsScreen(
                         )
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         roster.forEach { member ->
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Avatar(member.initials(), size = 28.dp)
-                                Text(member, style = MaterialTheme.typography.bodyMedium, color = Ink)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Avatar(member.name.initials(), size = 28.dp)
+                                Text(
+                                    member.name,
+                                    Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Ink,
+                                )
+                                TextButton(
+                                    onClick = { memberToRemove = member },
+                                    enabled = !busy,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                ) {
+                                    Text("Remove", color = if (busy) InkMuted else RedText)
+                                }
+                                if (removingMemberId == member.userId) {
+                                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                }
                             }
                         }
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Removing a member clears their team. They choose a company and team again before using the app.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                    )
                 }
             }
         }
@@ -754,9 +790,67 @@ fun TeamSettingsScreen(
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !saving && name.isNotBlank() && !nameTooLong,
+                enabled = !busy && name.isNotBlank() && !nameTooLong,
             )
         }
+        item {
+            DevWellCard {
+                SectionLabel("Delete team")
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Deleting ${team.name} removes it for everyone. Its engineers must choose a " +
+                        "company and team again before using the app. Their past check-ins stay private.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { confirmDelete = true },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, RedBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RedText),
+                ) {
+                    Text(
+                        if (deletingTeam) "Deleting..." else "Delete team",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+    }
+
+    memberToRemove?.let { member ->
+        DevWellDialog(
+            title = "Remove ${member.name}?",
+            subtitle = "They lose access to ${team.name} and must choose a company and team again. " +
+                "Their wellbeing data stays private.",
+            confirmLabel = "Remove member",
+            confirmEnabled = !busy,
+            destructive = true,
+            onConfirm = {
+                memberToRemove = null
+                onRemoveMember(member.userId)
+            },
+            onDismiss = { if (!busy) memberToRemove = null },
+        ) {}
+    }
+    if (confirmDelete) {
+        DevWellDialog(
+            title = "Delete ${team.name}?",
+            subtitle = "This cannot be undone. Every engineer on the team must choose a company and " +
+                "team again, and will need your approval to rejoin.",
+            confirmLabel = if (deletingTeam) "Deleting..." else "Delete team",
+            confirmEnabled = !busy,
+            destructive = true,
+            onConfirm = {
+                confirmDelete = false
+                onDeleteTeam()
+            },
+            onDismiss = { if (!busy) confirmDelete = false },
+        ) {}
     }
 }
 
@@ -793,6 +887,10 @@ fun TeamSettingsRoute(viewModel: ManagerViewModel, onBack: () -> Unit = {}) {
         message = state.message,
         onDismissFeedback = viewModel::clearFeedback,
         onBack = onBack,
+        removingMemberId = state.removingMemberId,
+        deletingTeam = state.deletingTeam,
+        onRemoveMember = viewModel::removeMember,
+        onDeleteTeam = viewModel::deleteTeam,
     )
 }
 
@@ -831,6 +929,29 @@ fun ManagerTeamScreen(
                     onSelect = onSelectTeam,
                     onCreate = { showCreateTeam = true },
                 )
+            }
+        } else {
+            item {
+                DevWellCard {
+                    SectionLabel("Your teams")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "You don't have any teams yet. Create one so engineers can request to join.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                    )
+                    if (teamError != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(teamError, style = MaterialTheme.typography.bodySmall, color = RedText)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    DevWellButton(
+                        "Create team",
+                        { showCreateTeam = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !creatingTeam,
+                    )
+                }
             }
         }
         item {
@@ -1180,7 +1301,12 @@ private fun ManagerInsightsMissingAveragesPreview() {
 
 private val previewTeam = Team(
     "preview", "c1", "Mobile Team",
-    memberCount = 3, roster = listOf("Aisha Khan", "Ben Mokoena", "Chloe Smith"),
+    memberCount = 3,
+    roster = listOf(
+        TeamMember("u1", "Aisha Khan"),
+        TeamMember("u2", "Ben Mokoena"),
+        TeamMember("u3", "Chloe Smith"),
+    ),
 )
 
 @Preview(showBackground = true, name = "Settings: valid")
