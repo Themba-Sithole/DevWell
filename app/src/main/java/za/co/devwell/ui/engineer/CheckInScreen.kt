@@ -1,4 +1,4 @@
-package za.co.devwell.ui.engineer
+﻿package za.co.devwell.ui.engineer
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -40,7 +40,6 @@ private val WELLBEING_CHOICES = listOf("Struggling", "Not great", "Okay", "Good"
 private val WORKLOAD_CHOICES = listOf("Very light", "Light", "Moderate", "Heavy", "Very heavy")
 private val AFTER_HOURS_CHOICES = listOf("None", "Up to 30 min", "30–60 min", "1–2 hours", "More than 2 hours")
 private val AFTER_HOURS_MINUTES = listOf(0, 15, 45, 90, 150)
-private const val NOTE_MAX_LENGTH = 500
 private const val NOT_SELECTED = -1
 
 /** Pure mapping functions so they can be unit tested without Compose. */
@@ -85,7 +84,6 @@ fun CheckInScreen(
     var energy by rememberSaveable { mutableFloatStateOf(initial?.energy?.toFloat() ?: 5f) }
     var focus by rememberSaveable { mutableFloatStateOf(initial?.focus?.toFloat() ?: 5f) }
     var afterHours by rememberSaveable { mutableIntStateOf(initial?.let { afterHoursIndexFor(it.afterHoursMinutes) } ?: NOT_SELECTED) }
-    var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
     val titles = listOf("Today's wellbeing", "Workload", "Energy and focus", "After-hours work", "Review")
     val stepScroll = rememberScrollState()
 
@@ -138,23 +136,7 @@ fun CheckInScreen(
                         DevWellDivider()
                         ReviewRow("After-hours work", AFTER_HOURS_CHOICES.getOrElse(afterHours) { "-" })
                     }
-                    DevWellTextField(
-                        note,
-                        { if (it.length <= NOTE_MAX_LENGTH) note = it },
-                        label = "Optional private note",
-                        singleLine = false,
-                        maxLines = 4,
-                        enabled = !isSaving,
-                    )
-                    Text(
-                        "${note.length}/$NOTE_MAX_LENGTH",
-                        Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = InkMuted,
-                        textAlign = TextAlign.End,
-                    )
-                    PrivacyNotice("Only you can view this individual response.")
-                    AuthFeedback(error = errorMessage)
+AuthFeedback(error = errorMessage)
                 }
             }
         }
@@ -181,7 +163,7 @@ fun CheckInScreen(
                     if (step < 5) {
                         step++
                     } else {
-                        onSubmit(buildCheckInDraft(wellbeing, workload, energy, focus, afterHours, note))
+                        onSubmit(buildCheckInDraft(wellbeing, workload, energy, focus, afterHours, ""))
                     }
                 },
                 modifier = Modifier.weight(1f),
