@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
+import androidx.compose.ui.graphics.ImageBitmap
 
 @Composable
 fun EngineerHomeScreen(
@@ -38,6 +39,7 @@ fun EngineerHomeScreen(
     onTeamOverview: () -> Unit,
     onProfile: () -> Unit,
     checkedInToday: Boolean = false,
+    photo: ImageBitmap? = null,
 ) {
     val firstName = name.trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifEmpty { "there" }
     val listState = rememberLazyListState()
@@ -72,7 +74,13 @@ fun EngineerHomeScreen(
                 }
                 Spacer(Modifier.width(12.dp))
                 Box(Modifier.clickable(onClick = onProfile)) {
-                    Avatar(name.initials(), size = 46.dp, background = Color.White, contentColor = DevGreen)
+                    Avatar(
+                        name.initials(),
+                        size = 46.dp,
+                        background = Color.White,
+                        contentColor = DevGreen,
+                        image = photo,
+                    )
                 }
             }
         }

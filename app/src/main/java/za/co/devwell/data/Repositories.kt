@@ -591,6 +591,7 @@ object AppContainer {
     private lateinit var wellbeingRepo: WellbeingRepository
     private lateinit var managerRepo: ManagerRepository
     private lateinit var teamInsightsRepo: TeamInsightsRepository
+    private lateinit var avatarRepo: za.co.devwell.data.avatar.AvatarRepository
     private var adminRepository: AdminRepository = EmptyAdminRepository()
     private var projectRepository: ProjectRepository = EmptyProjectRepository()
     private var aiRepository: AiGuidanceRepository = SupabaseAiGuidanceRepository(null)
@@ -614,6 +615,7 @@ object AppContainer {
                 queue = za.co.devwell.data.offline.OfflineDatabase.get(context).pendingCheckIns(),
                 scheduleSync = { za.co.devwell.data.offline.CheckInSyncScheduler.schedule(context) },
             )
+            avatarRepo = za.co.devwell.data.avatar.SupabaseAvatarRepository(client, identity.currentUser, scope)
             managerRepo = za.co.devwell.data.manager.SupabaseManagerRepository(client, scope)
             teamInsightsRepo = if (client == null) {
                 EmptyTeamInsightsRepository()
@@ -642,4 +644,5 @@ object AppContainer {
     val notifications: NotificationRepository get() = notificationRepository
     val ai: AiGuidanceRepository get() = aiRepository
     val admin: AdminRepository get() = adminRepository
+    val avatar: za.co.devwell.data.avatar.AvatarRepository get() = avatarRepo
 }

@@ -9,6 +9,7 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.ktor.client.engine.okhttp.OkHttp
 import za.co.devwell.BuildConfig
 import kotlin.time.Duration.Companion.seconds
+import io.github.jan.supabase.storage.Storage
 
 object SupabaseSetup {
     val isConfigured: Boolean
@@ -22,6 +23,7 @@ object SupabaseSetup {
             install(Auth) { sessionManager = DeviceSessionManager(context) }
             install(Postgrest)
             install(Functions)
+            install(Storage)
         }
     }
 }
