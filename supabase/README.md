@@ -26,6 +26,10 @@ Deployed to project `whtsjwiqcesngltfghyb` on 25 September 2026.
   choose a company and team again before using the app. Deleting a team also removes its
   join requests; the manager's own profile moves to another team they own, or to none.
   Admins cannot use these two RPCs; they use the admin company/team CRUD instead.
+- `restart_team_onboarding` lets an engineer whose request was not approved clear the
+  rejected placement and choose a different company and team. The rejected request stays
+  with its manager as history, and the new request goes through the normal approval flow.
+  Only a rejected engineer can call it; suspended accounts and every other role are refused.
 - Identical retries are idempotent. A profile lock serializes concurrent submissions.
 
 Both deployed functions have `verify_jwt=true` and also verify identity through Auth.

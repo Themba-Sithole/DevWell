@@ -1,7 +1,8 @@
 # Android verification
 
 Date: 23 September 2026. Manager registration added and re-verified on 21 October 2026.
-Manager team administration added on 22 October 2026.
+Manager team administration added on 22 October 2026. Request status feedback and
+re-application after a rejection added on 22 October 2026.
 
 ## Manager registration verification (21 October 2026)
 
@@ -52,6 +53,24 @@ Manager team administration added on 22 October 2026.
   and showed the Team Data empty state with Create team. Signing in as the removed
   engineer then opened the 3-step company/team onboarding instead of the dashboard.
   Temporary accounts and company were removed afterwards.
+
+## Request status feedback and re-application verification (22 October 2026)
+
+- The waiting screen now names the company and team from the active directory, shows a
+  Waiting for approval / Not approved status, and reports the result of Check approval
+  status ("still waiting" or "not approved"). The secondary "Choose another company and
+  team" action appears only for a rejected request.
+- `supabase/tests/reapply_after_rejection.sql` covers the rejection restart, history
+  retention, privilege and role refusals, and a successful new request to a different
+  company/team. All SQL test files pass on a fresh `supabase db reset`.
+- 195 JVM unit tests across 22 suites passed, including the new status messages, the
+  restart call, its server error, and the reset wizard state.
+- With a temporary live engineer, the waiting screen showed "Reapply Co A" / "Alpha
+  Reapply"; Check approval status reported "Still waiting for your manager..."; after the
+  request was rejected, it changed to "Not approved" with the new action; choosing another
+  team opened a fresh step 1, the new request to "Reapply Co B" / "Beta Reapply" was
+  accepted, and the waiting screen showed the new selection. The rejected request stayed
+  with the first manager, and the temporary accounts and companies were removed.
 
 ## Environment
 

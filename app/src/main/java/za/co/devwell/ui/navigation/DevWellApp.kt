@@ -89,7 +89,11 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
     val state by authViewModel.ui.collectAsStateWithLifecycle()
     val destination = entryDestination(state.user)
     LaunchedEffect(state.user?.id, destination) {
-        if (destination == EntryDestination.ONBOARDING) authViewModel.refreshDirectory()
+        // The waiting screen names the company and team the engineer chose, so it needs
+        // the same active directory the onboarding selection uses.
+        val pendingEngineer = destination == EntryDestination.PENDING &&
+            state.user?.role == UserRole.ENGINEER && state.user?.status != AccountStatus.SUSPENDED
+        if (destination == EntryDestination.ONBOARDING || pendingEngineer) authViewModel.refreshDirectory()
     }
     if (state.starting) {
         Column(Modifier.fillMaxSize().systemBarsPadding().padding(28.dp), verticalArrangement = Arrangement.Center) {
@@ -116,7 +120,7 @@ fun DevWellApp(viewModel: DevWellViewModel, authViewModel: AuthViewModel = andro
             EntryDestination.MANAGER_ONBOARDING -> ManagerOnboardingScreen(state,
                 authViewModel::createManagerCompany, authViewModel::signOut)
             EntryDestination.PENDING -> PendingApprovalScreen(state, authViewModel::refreshProfile,
-                authViewModel::signOut)
+                authViewModel::signOut, authViewModel::restartOnboarding)
             else -> {
                 // Keep the user for the duration of the outgoing cross-fade so sign-out
                 // does not tear down the protected graph mid-animation.

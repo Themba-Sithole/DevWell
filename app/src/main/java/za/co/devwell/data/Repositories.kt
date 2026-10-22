@@ -61,6 +61,11 @@ interface OnboardingRepository {
     val teams: Flow<List<Team>>
     suspend fun refreshDirectory() {}
     suspend fun submitEngineerJoinRequest(companyId: String, teamId: String)
+    /**
+     * Lets an engineer whose request was not approved return to company/team selection.
+     * The old rejected request stays with that manager as history.
+     */
+    suspend fun restartTeamOnboarding() {}
     /** Creates the manager's own company and first team, and activates the account. */
     suspend fun createManagerCompany(companyName: String, teamName: String)
 }

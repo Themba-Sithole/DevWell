@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material3.*
@@ -28,15 +29,17 @@ import androidx.compose.ui.unit.dp
 import za.co.devwell.model.AccountStatus
 import za.co.devwell.model.CompanyStatus
 import za.co.devwell.ui.components.devWellScrollbar
+import za.co.devwell.ui.theme.RedSurface
+import za.co.devwell.ui.theme.RedText
 import za.co.devwell.viewmodel.AuthUiState
 
 @Composable
 fun OnboardingScreen(state: AuthUiState, onSubmit: (String, String) -> Unit, onRefresh: () -> Unit,
     onRefreshProfile: () -> Unit, onSignOut: () -> Unit) {
     val companies = state.companies.filter { it.status == CompanyStatus.ACTIVE }
-    var companyId by rememberSaveable(state.user?.id) { mutableStateOf<String?>(null) }
-    var teamId by rememberSaveable(state.user?.id) { mutableStateOf<String?>(null) }
-    var step by rememberSaveable(state.user?.id) { mutableIntStateOf(1) }
+    var companyId by rememberSaveable(state.user?.id, state.onboardingRestart) { mutableStateOf<String?>(null) }
+    var teamId by rememberSaveable(state.user?.id, state.onboardingRestart) { mutableStateOf<String?>(null) }
+    var step by rememberSaveable(state.user?.id, state.onboardingRestart) { mutableIntStateOf(1) }
     val stepScroll = rememberScrollState()
     val company = companies.find { it.id == companyId }
     val teams = state.teams.filter { it.companyId == companyId }
@@ -141,17 +144,36 @@ private fun SelectionCard(title: String, subtitle: String, selected: Boolean, en
 }
 
 @Composable
-fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: () -> Unit) {
+fun PendingApprovalScreen(
+    state: AuthUiState,
+    onRefresh: () -> Unit,
+    onSignOut: () -> Unit,
+    onChooseAnotherTeam: () -> Unit = {},
+) {
     val rejected = state.user?.status == AccountStatus.REJECTED
     val suspended = state.user?.status == AccountStatus.SUSPENDED
     val company = state.companies.find { it.id == state.user?.companyId }?.name
     val team = state.teams.find { it.id == state.user?.teamId }?.name ?: state.user?.teamName
+    val namesLoading = state.directoryLoading && (company == null || team == null)
     val pageScroll = rememberScrollState()
+    val statusLabel = when {
+        suspended -> "Suspended"
+        rejected -> "Not approved"
+        else -> "Waiting for approval"
+    }
+    val statusColor = if (suspended || rejected) RedText else AuthGreen
     Column(Modifier.fillMaxSize().background(AuthBackground).systemBarsPadding().devWellScrollbar(pageScroll).verticalScroll(pageScroll).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Spacer(Modifier.height(64.dp))
-        Surface(shape = CircleShape, color = za.co.devwell.ui.theme.AccentSurface) {
-            Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.HourglassEmpty, null, Modifier.size(34.dp), tint = AuthGreen) }
+        Surface(shape = CircleShape, color = if (suspended || rejected) RedSurface else za.co.devwell.ui.theme.AccentSurface) {
+            Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    if (suspended || rejected) Icons.Outlined.Close else Icons.Outlined.HourglassEmpty,
+                    null,
+                    Modifier.size(34.dp),
+                    tint = statusColor,
+                )
+            }
         }
         Text(
             when {
@@ -166,8 +188,11 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
         Text(
             when {
                 suspended -> "An administrator suspended this account. Contact your administrator if you need help restoring access."
-                rejected -> "Contact your manager to discuss your request. Your account cannot access the dashboard yet."
-                else -> "Your request to join ${company ?: "your company"} has been sent to your manager. You'll have full access once they approve it."
+                rejected -> "The manager of ${team ?: "the team you chose"} did not approve your request. " +
+                    "You can choose a different company and team, or contact them to ask why."
+                else -> "Your request to join ${team ?: "your chosen team"}" +
+                    (company?.let { " at $it" } ?: "") +
+                    " has been sent to its manager. You'll have full access once they approve it."
             },
             color = AuthMuted,
             textAlign = TextAlign.Center,
@@ -175,10 +200,23 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
         if (!suspended) Surface(shape = AuthShape, color = Color.White, border = BorderStroke(1.dp, AuthBorder), shadowElevation = 1.dp) {
             Column(Modifier.padding(16.dp)) {
                 Text("YOUR REQUEST", color = AuthMuted, style = MaterialTheme.typography.labelSmall)
-                DetailRow("Company", company ?: "Your company")
+                DetailRow("Company", company ?: if (namesLoading) "Loading…" else "Not available")
                 HorizontalDivider(color = AuthBackground)
-                DetailRow("Team", team ?: "Your selected team")
-                DetailRow("Status", if (rejected) "Not approved" else "Pending review")
+                DetailRow("Team", team ?: if (namesLoading) "Loading…" else "Not available")
+                HorizontalDivider(color = AuthBackground)
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Status", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = AuthMuted)
+                    Surface(shape = CircleShape, color = if (suspended || rejected) RedSurface else za.co.devwell.ui.theme.AccentSurface) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Box(Modifier.size(7.dp).background(statusColor, CircleShape))
+                            Text(statusLabel, color = statusColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
         }
         AuthFeedback(state.error, state.message)
@@ -192,6 +230,23 @@ fun PendingApprovalScreen(state: AuthUiState, onRefresh: () -> Unit, onSignOut: 
             enabled = !state.busy,
             onClick = onRefresh,
         )
+        if (rejected) {
+            OutlinedButton(
+                onClick = onChooseAnotherTeam,
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                shape = AuthShape,
+                border = BorderStroke(1.dp, AuthGreen),
+            ) {
+                Text(
+                    "Choose another company and team",
+                    color = AuthGreen,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            PrivacyNote("Your earlier request stays with that team's manager. The manager of the team you choose next will review the new request.")
+        }
         if (!suspended) PrivacyNote("Your manager can approve your access from their DevWell dashboard.")
         TextButton(onClick = onSignOut, enabled = !state.busy) { Text("Sign out", color = AuthMuted) }
     }

@@ -152,6 +152,65 @@ class AuthViewModelTest {
         assertEquals(0, manager.refreshes)
     }
 
+    @Test fun checkingAStillPendingRequestConfirmsItIsStillWaiting() = runTest(dispatcher) {
+        val fake = FakeIdentity()
+        fake.currentUser.value = fake.newEngineer.copy(
+            companyId = "c1", teamId = "t1", onboardingDone = true,
+        )
+        val vm = model(fake); runCurrent()
+
+        vm.refreshProfile(); runCurrent()
+
+        assertTrue(vm.ui.value.message!!.startsWith("Still waiting"))
+        assertEquals(EntryDestination.PENDING, entryDestination(vm.ui.value.user))
+        assertTrue("The pending screen needs the directory for names", fake.directoryRefreshes > 0)
+    }
+
+    @Test fun checkingAfterRejectionShowsNotApprovedAndOffersAnotherTeam() = runTest(dispatcher) {
+        val fake = FakeIdentity()
+        fake.currentUser.value = fake.newEngineer.copy(
+            companyId = "c1", teamId = "t1", onboardingDone = true,
+        )
+        val vm = model(fake); runCurrent()
+        fake.rejected = true
+
+        vm.refreshProfile(); runCurrent()
+
+        assertTrue(vm.ui.value.message!!.contains("not approved"))
+        assertEquals(EntryDestination.PENDING, entryDestination(vm.ui.value.user))
+    }
+
+    @Test fun aRejectedEngineerCanReturnToCompanyAndTeamSelection() = runTest(dispatcher) {
+        val fake = FakeIdentity()
+        fake.currentUser.value = fake.newEngineer.copy(
+            companyId = "c1", teamId = "t1", onboardingDone = true, status = AccountStatus.REJECTED,
+        )
+        val vm = model(fake); runCurrent()
+
+        vm.restartOnboarding(); runCurrent()
+
+        assertEquals(1, fake.restartCalls)
+        assertEquals(EntryDestination.ONBOARDING, entryDestination(vm.ui.value.user))
+        assertEquals(1, vm.ui.value.onboardingRestart)
+        assertTrue(fake.directoryRefreshes > 0)
+    }
+
+    @Test fun aFailedRestartKeepsTheRejectedScreenAndShowsTheError() = runTest(dispatcher) {
+        val fake = FakeIdentity()
+        fake.currentUser.value = fake.newEngineer.copy(
+            companyId = "c1", teamId = "t1", onboardingDone = true, status = AccountStatus.REJECTED,
+        )
+        val vm = model(fake); runCurrent()
+        fake.fail = true
+
+        vm.restartOnboarding(); runCurrent()
+
+        assertEquals(1, fake.restartCalls)
+        assertNotNull(vm.ui.value.error)
+        assertEquals(EntryDestination.PENDING, entryDestination(vm.ui.value.user))
+        assertEquals(0, vm.ui.value.onboardingRestart)
+    }
+
     private class FakeIdentity : AuthRepository, OnboardingRepository {
         val newEngineer = DevWellUser("u1", "Student", "user@example.com", UserRole.ENGINEER,
             status = AccountStatus.PENDING, onboardingDone = false)
@@ -161,10 +220,14 @@ class AuthViewModelTest {
         var signIns = 0
         var fail = false
         var approved = false
+        var rejected = false
         var duplicateEmail = false
         var requestedRole: SignupRole? = null
         var createdCompany: Pair<String, String>? = null
+        var restartCalls = 0
+        var directoryRefreshes = 0
         var waitForLogin: CompletableDeferred<Unit>? = null
+        override suspend fun refreshDirectory() { directoryRefreshes++ }
         override suspend fun signIn(email: String, password: String): Result<DevWellUser> {
             signIns++
             waitForLogin?.await()
@@ -182,11 +245,23 @@ class AuthViewModelTest {
         }
         override suspend fun signOut() { currentUser.value = null }
         override suspend fun refreshProfile() {
-            if (approved) currentUser.value = currentUser.value?.copy(status = AccountStatus.ACTIVE)
+            currentUser.value = when {
+                approved -> currentUser.value?.copy(status = AccountStatus.ACTIVE)
+                rejected -> currentUser.value?.copy(status = AccountStatus.REJECTED)
+                else -> currentUser.value
+            }
         }
         override suspend fun submitEngineerJoinRequest(companyId: String, teamId: String) {
             if (fail) error("Request failed")
             currentUser.value = currentUser.value?.copy(companyId = companyId, teamId = teamId, onboardingDone = true)
+        }
+        override suspend fun restartTeamOnboarding() {
+            restartCalls++
+            if (fail) error("Restart failed")
+            currentUser.value = currentUser.value?.copy(
+                companyId = null, teamId = null,
+                status = AccountStatus.PENDING, onboardingDone = false,
+            )
         }
         override suspend fun createManagerCompany(companyName: String, teamName: String) {
             if (fail) error("Company failed")

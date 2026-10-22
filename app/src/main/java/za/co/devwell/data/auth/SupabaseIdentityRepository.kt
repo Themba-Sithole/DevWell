@@ -4,6 +4,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
@@ -185,6 +186,33 @@ class SupabaseIdentityRepository(
         loadProfile()
         check(currentUser.value?.onboardingDone == true) {
             "The request could not be confirmed. Refresh your account status before trying again."
+        }
+    }
+
+    /**
+     * A rejected engineer opts in to choosing a different company and team. The server
+     * clears the rejected placement and puts the profile back into onboarding; the old
+     * rejected request stays with its team. The profile is reloaded so routing can move
+     * to the selection screen.
+     */
+    override suspend fun restartTeamOnboarding() = accountLock.withLock {
+        val user = currentUser.value ?: error("Please sign in first.")
+        check(user.role == UserRole.ENGINEER && user.status == AccountStatus.REJECTED) {
+            "Your account cannot choose another team right now."
+        }
+        try {
+            connection().postgrest.rpc("restart_team_onboarding")
+        } catch (error: RestException) {
+            // The RPC's PT4xx messages are written for people; keep them.
+            if (error.statusCode in setOf(400, 401, 403, 409) && error.error.isNotBlank()) {
+                throw IllegalStateException(error.error, error)
+            }
+            throw error
+        }
+        loadProfile()
+        check(currentUser.value?.status == AccountStatus.PENDING &&
+            currentUser.value?.onboardingDone == false) {
+            "The new selection could not be confirmed. Refresh your account status and try again."
         }
     }
 

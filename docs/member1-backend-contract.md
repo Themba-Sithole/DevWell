@@ -203,6 +203,17 @@ excluded; admin company/team CRUD is a separate surface.
   the app. Only the SECURITY INVOKER wrappers are exposed, and only `authenticated` may
   execute them.
 
+### Re-applying after a rejection
+
+An engineer whose request was not approved must not be locked out of onboarding forever.
+`public.restart_team_onboarding()` takes no parameters and verifies that the caller is the
+signed-in engineer with status=rejected. It clears company_id and team_id and sets
+status=pending and onboarding_done=false, which routes the app back to company/team
+selection. The old rejected request is kept for its team's manager as history. The
+engineer then submits a normal `submit-join-request` for any active company and team, and
+that team's manager approves or rejects it. Pending, active, suspended, manager and admin
+callers are refused, so only a rejected engineer can use this path.
+
 ## Access rules and integration notes for the whole team
 
 - Enable RLS on every exposed table and add only necessary Data API grants. A table

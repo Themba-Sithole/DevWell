@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import za.co.devwell.data.AppContainer
@@ -25,6 +26,8 @@ data class AuthUiState(
     val message: String? = null,
     val companies: List<Company> = emptyList(),
     val teams: List<Team> = emptyList(),
+    /** Increments after a rejected engineer asks to choose another team, resetting the wizard. */
+    val onboardingRestart: Int = 0,
 )
 
 class AuthViewModel(
@@ -73,7 +76,39 @@ class AuthViewModel(
         }
     }
 
-    fun refreshProfile() = action { auth.refreshProfile() }
+    fun refreshProfile() = action {
+        auth.refreshProfile()
+        // The collector updates state.user asynchronously; read the repository's latest
+        // value so the feedback matches the status that was just fetched.
+        val user = auth.currentUser.first()
+        // A pending/rejected engineer needs the directory to show the company and team
+        // they chose. It normally loads on entering the waiting screen; retry it here.
+        if (user != null && user.role == UserRole.ENGINEER &&
+            user.status in setOf(AccountStatus.PENDING, AccountStatus.REJECTED)) {
+            try { onboarding.refreshDirectory() }
+            catch (error: CancellationException) { throw error }
+            catch (_: Exception) { /* The status check still succeeded; names can retry later. */ }
+        }
+        state.update {
+            it.copy(message = when (user?.status) {
+                AccountStatus.PENDING ->
+                    "Still waiting for your manager to review your request. Check again later."
+                AccountStatus.REJECTED ->
+                    "Your request was not approved. You can choose a different company and team."
+                AccountStatus.SUSPENDED -> "This account is still suspended."
+                else -> null
+            })
+        }
+    }
+
+    /** A rejected engineer opts in to choosing another company and team. */
+    fun restartOnboarding() = action {
+        onboarding.restartTeamOnboarding()
+        state.update { it.copy(onboardingRestart = it.onboardingRestart + 1) }
+        try { onboarding.refreshDirectory() }
+        catch (error: CancellationException) { throw error }
+        catch (_: Exception) { /* The wizard has its own refresh action. */ }
+    }
 
     /** Saves the display name, the only editable profile field. */
     fun updateProfileName(name: String) {

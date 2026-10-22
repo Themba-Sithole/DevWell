@@ -157,6 +157,68 @@ class SupabaseIdentityRepositoryTest {
         } finally { client.close() }
     }
 
+    @Test fun aRejectedEngineerCanRestartOnboarding() = runTest {
+        var restarted = false
+        var rpcCalls = 0
+        val engine = MockEngine { request ->
+            val body = when (request.url.encodedPath) {
+                "/auth/v1/token" -> token
+                "/rest/v1/user" -> if (restarted) profile else
+                    """[{"id":"u1","name":"Student","email":"user@example.com","role":"engineer","status":"rejected","company_id":"c1","team_id":"t1","onboarding_done":true}]"""
+                "/rest/v1/rpc/restart_team_onboarding" -> {
+                    rpcCalls++
+                    restarted = true
+                    """{"restarted":true}"""
+                }
+                else -> error("Unexpected request: ${request.url.encodedPath}")
+            }
+            respond(body, HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
+        }
+        val client = client(engine)
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            assertTrue(repo.signIn("user@example.com", "password123").isSuccess)
+            assertEquals(AccountStatus.REJECTED, repo.currentUser.value?.status)
+
+            repo.restartTeamOnboarding()
+
+            assertEquals(1, rpcCalls)
+            assertEquals(AccountStatus.PENDING, repo.currentUser.value?.status)
+            assertEquals(false, repo.currentUser.value?.onboardingDone)
+            assertNull(repo.currentUser.value?.companyId)
+            assertEquals(EntryDestination.ONBOARDING, entryDestination(repo.currentUser.value))
+        } finally { client.close() }
+    }
+
+    @Test fun restartOnboardingShowsTheServerMessage() = runTest {
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/auth/v1/token" -> respond(token, HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
+                "/rest/v1/user" -> respond(
+                    """[{"id":"u1","name":"Student","email":"user@example.com","role":"engineer","status":"rejected","company_id":"c1","team_id":"t1","onboarding_done":true}]""",
+                    HttpStatusCode.OK, headersOf("Content-Type", "application/json"),
+                )
+                "/rest/v1/rpc/restart_team_onboarding" -> respond(
+                    """{"code":"PT409","message":"Only a request that was not approved can choose another team."}""",
+                    HttpStatusCode.Conflict, headersOf("Content-Type", "application/json"),
+                )
+                else -> error("Unexpected request: ${request.url.encodedPath}")
+            }
+        }
+        val client = client(engine)
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            assertTrue(repo.signIn("user@example.com", "password123").isSuccess)
+            val error = runCatching { repo.restartTeamOnboarding() }.exceptionOrNull()
+            assertTrue("Expected IllegalStateException but got $error", error is IllegalStateException)
+            assertEquals(
+                "Only a request that was not approved can choose another team.",
+                error?.message,
+            )
+            assertEquals(AccountStatus.REJECTED, repo.currentUser.value?.status)
+        } finally { client.close() }
+    }
+
     private fun directoryEngine(countStatus: HttpStatusCode, countBody: String) = MockEngine { request ->
         val (status, body) = when (request.url.encodedPath) {
             "/auth/v1/token" -> HttpStatusCode.OK to token
