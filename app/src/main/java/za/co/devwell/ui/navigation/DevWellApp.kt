@@ -80,6 +80,7 @@ import za.co.devwell.data.AppContainer
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import za.co.devwell.notifications.NotificationScheduler
+import za.co.devwell.viewmodel.AvatarViewModel
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector, val fab: Boolean = false)
 
@@ -145,6 +146,9 @@ private fun RoleApp(
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
     val notificationSyncStatus by viewModel.notificationSyncStatus.collectAsStateWithLifecycle()
     val notificationContext = LocalContext.current
+    val avatarViewModel = androidx.lifecycle.viewmodel.compose.viewModel<AvatarViewModel>()
+    val avatarPhoto by avatarViewModel.photo.collectAsStateWithLifecycle()
+    val avatarStatus by avatarViewModel.status.collectAsStateWithLifecycle()
     LaunchedEffect(user.id, notificationPrefs) {
         NotificationScheduler.applyPreferences(notificationContext, notificationPrefs)
     }
@@ -272,6 +276,7 @@ private fun RoleApp(
                     onTeamOverview = { navController.navigate(Routes.TEAM_OVERVIEW) },
                     onProfile = { navController.navigate(Routes.ENGINEER_PROFILE) },
                     checkedInToday = todaysCheckIn != null,
+                    photo = avatarPhoto,
                 )
             }
                 composable(Routes.CHECK_IN) {
@@ -351,6 +356,11 @@ private fun RoleApp(
                     onSignOut = onSignOut,
                     name = user.name,
                     email = user.email,
+                    photo = avatarPhoto,
+                    photoBusy = avatarStatus.busy,
+                    photoError = avatarStatus.error,
+                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
+                    onRemovePhoto = avatarViewModel::removePhoto,
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)
@@ -416,6 +426,11 @@ private fun RoleApp(
                     onSignOut = onSignOut,
                     name = user.name,
                     email = user.email,
+                    photo = avatarPhoto,
+                    photoBusy = avatarStatus.busy,
+                    photoError = avatarStatus.error,
+                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
+                    onRemovePhoto = avatarViewModel::removePhoto,
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)
@@ -455,6 +470,11 @@ private fun RoleApp(
                     onSignOut = onSignOut,
                     name = user.name,
                     email = user.email,
+                    photo = avatarPhoto,
+                    photoBusy = avatarStatus.busy,
+                    photoError = avatarStatus.error,
+                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
+                    onRemovePhoto = avatarViewModel::removePhoto,
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)

@@ -48,6 +48,9 @@ import java.time.ZoneOffset
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 
 @Composable
 fun PageTitle(title: String, subtitle: String? = null) {
@@ -383,18 +386,28 @@ fun Avatar(
     modifier: Modifier = Modifier,
     background: Color = DevGreen,
     contentColor: Color = Color.White,
+    image: ImageBitmap? = null,
 ) {
     Box(
-        modifier.size(size).background(background, CircleShape),
+        modifier.size(size).clip(CircleShape).background(background, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            initials,
-            color = contentColor,
-            fontFamily = Outfit,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = (size.value * 0.38f).sp,
-        )
+        if (image != null) {
+            Image(
+                bitmap = image,
+                contentDescription = "Profile photo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(
+                initials,
+                color = contentColor,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = (size.value * 0.38f).sp,
+            )
+        }
     }
 }
 

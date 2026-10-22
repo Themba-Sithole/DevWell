@@ -51,6 +51,12 @@ import za.co.devwell.model.UserRole
 import za.co.devwell.ui.auth.AuthFeedback
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 
 @Composable
 fun ProfileScreen(
@@ -64,9 +70,20 @@ fun ProfileScreen(
     onTips: () -> Unit = {},
     onExercises: () -> Unit = {},
     onSettings: () -> Unit = {},
+    photo: ImageBitmap? = null,
+    photoBusy: Boolean = false,
+    photoError: String? = null,
+    onPhotoPicked: ((Uri) -> Unit)? = null,
+    onRemovePhoto: () -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onPhotoPicked?.invoke(uri)
+    }
+    val pickPhoto = {
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
     val dailyReminderEnabled = prefs?.dailyEnabled ?: true
     val pageScroll = rememberScrollState()
     Column(
@@ -85,7 +102,16 @@ fun ProfileScreen(
         }
         DevWellCard(padding = 18.dp) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Avatar(name.ifBlank { "?" }.initials(), size = 56.dp)
+                Avatar(
+                    name.ifBlank { "?" }.initials(),
+                    size = 56.dp,
+                    image = photo,
+                    modifier = if (onPhotoPicked != null && !photoBusy) {
+                        Modifier.clip(CircleShape).clickable(onClick = pickPhoto)
+                    } else {
+                        Modifier
+                    },
+                )
                 Column {
                     Text(
                         name.ifBlank { "DevWell user" },
@@ -109,7 +135,32 @@ fun ProfileScreen(
                             UserRole.ADMIN -> "Admin"
                         },
                         skin = ChipSkin.Green,
+
                     )
+
+                    if (onPhotoPicked != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            TextButton(
+                                onClick = pickPhoto,
+                                enabled = !photoBusy,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            ) { Text(if (photo == null) "Add photo" else "Change photo") }
+                            if (photo != null) {
+                                TextButton(
+                                    onClick = onRemovePhoto,
+                                    enabled = !photoBusy,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                ) { Text("Remove") }
+                            }
+                            if (photoBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        }
+                        if (photoError != null) {
+                            Text(photoError, style = MaterialTheme.typography.bodySmall, color = RedText)
+                        }
+                    }
                 }
             }
         }
