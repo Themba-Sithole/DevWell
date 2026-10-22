@@ -16,6 +16,7 @@ import za.co.devwell.data.ManagerRepository
 import za.co.devwell.data.OnboardingRepository
 import za.co.devwell.model.*
 import za.co.devwell.viewmodel.AuthViewModel
+import za.co.devwell.viewmodel.friendlyError
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthViewModelTest {
@@ -87,6 +88,22 @@ class AuthViewModelTest {
         vm.signUp("Student", "user@example.com", "short", "short", SignupRole.MANAGER); runCurrent()
         assertNull(fake.requestedRole)
         assertNotNull(vm.ui.value.error)
+    }
+    @Test fun emailFailuresExplainWhatTheEmailServiceRejected() {
+        assertEquals(
+            "The email service has hit its hourly limit. Wait about an hour and try again.",
+            friendlyError(AuthRestException("over_email_send_rate_limit", "email rate limit exceeded", 429)),
+        )
+        assertTrue(
+            "email setup" in friendlyError(
+                AuthRestException("email_address_not_authorized", "Email address not authorized.", 400),
+            ),
+        )
+        assertTrue(
+            "cannot receive mail" in friendlyError(
+                AuthRestException("email_address_invalid", "Email address is invalid", 400),
+            ),
+        )
     }
     @Test fun registeringAnExistingEmailAsksThePersonToSignIn() = runTest(dispatcher) {
         val fake = FakeIdentity(); fake.duplicateEmail = true

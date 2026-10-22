@@ -89,6 +89,16 @@ engineer accounts must be created through the admin API until the hosted rate li
 is raised in the dashboard. Signups made through the app are not affected by the
 role handling; only the rate limit stops them.
 
+Email delivery on the live project still uses Supabase's built-in mailer, which only
+delivers to addresses that belong to the project's team and is limited to 2 messages
+per hour. Signup confirmations, email changes (Account & profile -> Save changes) and
+password resets therefore fail for ordinary addresses with
+`email_address_not_authorized` or `over_email_send_rate_limit` until a custom SMTP
+provider is configured (Authentication -> SMTP) and the email rate limit is raised
+(Authentication -> Rate Limits). The Android app reports those two codes separately,
+but it cannot send the mail itself; the confirmation link is required before
+`auth.users.email` (and the profile row through `private.sync_profile_email`) changes.
+
 The Android admin screen currently lists account identities and supports suspend /
 reactivate. Company/team CRUD and temporary credential creation are not wired into the
 screen. Validate database changes only on a disposable/local database; the transactional

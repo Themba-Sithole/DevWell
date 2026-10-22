@@ -134,6 +134,30 @@ class SupabaseIdentityRepositoryTest {
         } finally { client.close() }
     }
 
+    @Test fun updateEmailSaysWhereTheConfirmationLinkWent() = runTest {
+        val calls = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            calls.add("${request.method.value} ${request.url.encodedPath}")
+            val body = when (request.url.encodedPath) {
+                "/auth/v1/token" -> token
+                "/rest/v1/user" -> profile
+                "/rest/v1/company", "/rest/v1/team" -> "[]"
+                "/auth/v1/user" -> """{"id":"u1","email":"user@example.com","new_email":"new@example.com","aud":"authenticated","role":"authenticated"}"""
+                else -> error("Unexpected request: ${request.url.encodedPath}")
+            }
+            respond(body, HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
+        }
+        val client = client(engine)
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            assertTrue(repo.signIn("user@example.com", "password123").isSuccess)
+            val message = repo.updateEmail("new@example.com")
+            assertTrue("PUT /auth/v1/user" in calls)
+            assertTrue("new@example.com" in message)
+            assertTrue("current email stays active" in message)
+        } finally { client.close() }
+    }
+
     private fun client(engine: MockEngine) = createSupabaseClient("https://example.supabase.co", "test-key") {
         httpEngine = engine
         install(Auth) {

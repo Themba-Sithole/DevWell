@@ -132,7 +132,7 @@ class SupabaseIdentityRepository(
         check(supabase.auth.currentSessionOrNull() != null) { "Please sign in again." }
         // The profile row follows through the email sync trigger after confirmation.
         supabase.auth.updateUser { this.email = trimmed }
-        "Check your inbox and open the confirmation link to finish changing your email."
+        "We sent a confirmation link to $trimmed. Your current email stays active until you open it."
     }
 
     override suspend fun updatePassword(password: String): String = accountLock.withLock {
