@@ -161,8 +161,19 @@ class SupabaseIdentityRepository(
         val companyRows = supabase.from("company").select { filter { eq("status", "active") } }
             .decodeList<CompanyRow>().map { it.toCompany() }.sortedBy { it.name }
         val companyIds = companyRows.map { it.id }.toSet()
+        // Other profiles are hidden by RLS, so the headcount comes from a guarded RPC.
+        // If it is missing or fails, the teams still load and show 0.
+        val counts = try {
+            supabase.postgrest.rpc("team_member_counts").decodeList<TeamMemberCountRow>()
+                .associate { it.teamId to it.memberCount }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            emptyMap()
+        }
         val teamRows = supabase.from("team").select().decodeList<TeamRow>()
-            .filter { it.companyId in companyIds }.map { it.toTeam() }.sortedBy { it.name }
+            .filter { it.companyId in companyIds }
+            .map { it.toTeam().copy(memberCount = counts[it.id] ?: 0) }.sortedBy { it.name }
         companies.value = companyRows
         teams.value = teamRows
     }
