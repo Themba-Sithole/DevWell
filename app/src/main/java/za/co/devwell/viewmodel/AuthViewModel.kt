@@ -169,7 +169,7 @@ internal fun friendlyError(error: Exception): String = when (error) {
     is RestException -> when (error.error) {
         "invalid_credentials" -> "The email or password is incorrect. Please try again."
         "email_not_confirmed" -> "Confirm your email before signing in."
-        "user_already_exists", "email_exists" -> "An account may already exist. Try signing in."
+        "user_already_exists", "email_exists" -> EMAIL_ALREADY_REGISTERED
         "weak_password" -> "Choose a stronger password with at least 8 characters."
         "over_email_send_rate_limit", "over_request_rate_limit" -> "Too many attempts. Wait a moment and try again."
         "PGRST205", "42P01", "PGRST204", "42703" -> "The team is still setting up the database. Please try again when it is ready."

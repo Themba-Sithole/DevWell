@@ -49,6 +49,9 @@ fun registrationValidation(name: String, email: String, password: String, confir
         else -> null
     }
 
+/** Shown when a signup asks for an address that already has an account. */
+const val EMAIL_ALREADY_REGISTERED = "An account with this email already exists. Sign in instead."
+
 /** Mirrors the company and team name limits in the database. */
 const val COMPANY_NAME_MAX = 150
 const val TEAM_NAME_MAX = 60

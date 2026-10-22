@@ -75,7 +75,7 @@ class SupabaseIdentityRepository(
         val supabase = connection()
         supabase.auth.awaitInitialization()
         supabase.auth.clearSession()
-        supabase.auth.signUpWith(Email) {
+        val user = supabase.auth.signUpWith(Email) {
             this.email = email.trim()
             this.password = password
             // The name and the requested role are metadata. The database grants the
@@ -85,6 +85,10 @@ class SupabaseIdentityRepository(
                 put("role", if (role == SignupRole.MANAGER) "manager" else "engineer")
             }
         }
+        // With email confirmation on, the server answers an address that already has
+        // an account with a placeholder user that has no identities and no session.
+        // Never tell the person to confirm an account that already exists.
+        if (user?.identities?.isEmpty() == true) error(EMAIL_ALREADY_REGISTERED)
         if (supabase.auth.currentSessionOrNull() != null) {
             loadProfile()
             if (role == SignupRole.MANAGER) {

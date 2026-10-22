@@ -89,6 +89,51 @@ class SupabaseIdentityRepositoryTest {
         } finally { client.close() }
     }
 
+    @Test fun signUpRefusesAnAddressThatAlreadyHasAnAccount() = runTest {
+        // With email confirmation on, the server answers an existing address with a
+        // placeholder user that has no identities and no session.
+        val engine = MockEngine { request ->
+            assertEquals("/auth/v1/signup", request.url.encodedPath)
+            respond(
+                """{"id":"u9","aud":"authenticated","role":"","email":"user@example.com","phone":"",
+                   "confirmation_sent_at":"2026-10-22T09:19:57Z","app_metadata":{"provider":"email"},
+                   "user_metadata":{},"identities":[],"is_anonymous":false}""",
+                HttpStatusCode.OK, headersOf("Content-Type", "application/json"),
+            )
+        }
+        val client = client(engine)
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            val error = runCatching {
+                repo.signUp("Student", "user@example.com", "password123", SignupRole.ENGINEER)
+            }.exceptionOrNull()
+            assertEquals(EMAIL_ALREADY_REGISTERED, error?.message)
+            assertNull(client.auth.currentSessionOrNull())
+            assertNull(repo.currentUser.value)
+        } finally { client.close() }
+    }
+
+    @Test fun signUpOfANewAddressAsksForEmailConfirmation() = runTest {
+        val engine = MockEngine { request ->
+            respond(
+                """{"id":"u2","aud":"authenticated","role":"authenticated","email":"new@example.com",
+                   "phone":"","confirmation_sent_at":"2026-10-22T09:20:14Z",
+                   "app_metadata":{"provider":"email","providers":["email"]},
+                   "user_metadata":{"name":"Student","role":"manager"},
+                   "identities":[{"identity_id":"i1","id":"u2","user_id":"u2","provider":"email",
+                   "identity_data":{"email":"new@example.com"},"created_at":"2026-10-22T09:20:14Z"}],
+                   "created_at":"2026-10-22T09:20:14Z","is_anonymous":false}""",
+                HttpStatusCode.OK, headersOf("Content-Type", "application/json"),
+            )
+        }
+        val client = client(engine)
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            val message = repo.signUp("Student", "new@example.com", "password123", SignupRole.MANAGER)
+            assertEquals("Check your email to confirm your account, then return here and sign in.", message)
+        } finally { client.close() }
+    }
+
     private fun client(engine: MockEngine) = createSupabaseClient("https://example.supabase.co", "test-key") {
         httpEngine = engine
         install(Auth) {

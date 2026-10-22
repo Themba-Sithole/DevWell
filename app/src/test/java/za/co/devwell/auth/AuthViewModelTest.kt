@@ -1,6 +1,7 @@
 package za.co.devwell.auth
 
 import androidx.lifecycle.ViewModelStore
+import io.github.jan.supabase.auth.exception.AuthRestException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -87,6 +88,13 @@ class AuthViewModelTest {
         assertNull(fake.requestedRole)
         assertNotNull(vm.ui.value.error)
     }
+    @Test fun registeringAnExistingEmailAsksThePersonToSignIn() = runTest(dispatcher) {
+        val fake = FakeIdentity(); fake.duplicateEmail = true
+        val vm = model(fake); runCurrent()
+        vm.signUp("Student", "user@example.com", "password123", "password123", SignupRole.ENGINEER); runCurrent()
+        assertEquals(EMAIL_ALREADY_REGISTERED, vm.ui.value.error)
+        assertNull(vm.ui.value.message)
+    }
     @Test fun managerCreatesCompanyAndReachesTheManagerDashboard() = runTest(dispatcher) {
         val fake = FakeIdentity()
         fake.currentUser.value = DevWellUser("u2", "Boss", "boss@example.com", UserRole.MANAGER,
@@ -136,6 +144,7 @@ class AuthViewModelTest {
         var signIns = 0
         var fail = false
         var approved = false
+        var duplicateEmail = false
         var requestedRole: SignupRole? = null
         var createdCompany: Pair<String, String>? = null
         var waitForLogin: CompletableDeferred<Unit>? = null
@@ -148,6 +157,10 @@ class AuthViewModelTest {
         }
         override suspend fun signUp(name: String, email: String, password: String, role: SignupRole): String {
             requestedRole = role
+            if (duplicateEmail) {
+                // AuthRestException takes the error code first and the server message second.
+                throw AuthRestException("user_already_exists", "User already registered", 422)
+            }
             return "Account created."
         }
         override suspend fun signOut() { currentUser.value = null }
