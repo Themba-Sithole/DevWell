@@ -50,8 +50,6 @@ interface AuthRepository {
         error("Registration is unavailable")
     /** Updates the signed-in user's display name. Returns a confirmation message. */
     suspend fun updateName(name: String): String = error("Editing your profile is unavailable")
-    /** Starts an email change. The new address applies once the confirmation link is opened. */
-    suspend fun updateEmail(email: String): String = error("Changing your email is unavailable")
     /** Replaces the signed-in account's password. Returns a confirmation message. */
     suspend fun updatePassword(password: String): String = error("Changing your password is unavailable")
     suspend fun signIn(email: String, password: String): Result<DevWellUser>

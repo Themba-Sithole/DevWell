@@ -71,19 +71,9 @@ fun ProfileScreen(
     onExercises: () -> Unit = {},
     onSettings: () -> Unit = {},
     photo: ImageBitmap? = null,
-    photoBusy: Boolean = false,
-    photoError: String? = null,
-    onPhotoPicked: ((Uri) -> Unit)? = null,
-    onRemovePhoto: () -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) onPhotoPicked?.invoke(uri)
-    }
-    val pickPhoto = {
-        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-    }
     val dailyReminderEnabled = prefs?.dailyEnabled ?: true
     val pageScroll = rememberScrollState()
     Column(
@@ -102,16 +92,7 @@ fun ProfileScreen(
         }
         DevWellCard(padding = 18.dp) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Avatar(
-                    name.ifBlank { "?" }.initials(),
-                    size = 56.dp,
-                    image = photo,
-                    modifier = if (onPhotoPicked != null && !photoBusy) {
-                        Modifier.clip(CircleShape).clickable(onClick = pickPhoto)
-                    } else {
-                        Modifier
-                    },
-                )
+                Avatar(name.ifBlank { "?" }.initials(), size = 56.dp, image = photo)
                 Column {
                     Text(
                         name.ifBlank { "DevWell user" },
@@ -137,30 +118,6 @@ fun ProfileScreen(
                         skin = ChipSkin.Green,
 
                     )
-
-                    if (onPhotoPicked != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            TextButton(
-                                onClick = pickPhoto,
-                                enabled = !photoBusy,
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                            ) { Text(if (photo == null) "Add photo" else "Change photo") }
-                            if (photo != null) {
-                                TextButton(
-                                    onClick = onRemovePhoto,
-                                    enabled = !photoBusy,
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                ) { Text("Remove") }
-                            }
-                            if (photoBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        }
-                        if (photoError != null) {
-                            Text(photoError, style = MaterialTheme.typography.bodySmall, color = RedText)
-                        }
-                    }
                 }
             }
         }
@@ -378,28 +335,37 @@ fun SettingsScreen(
     }
 }
 
-/** Editable account details: display name, email address and password. */
+/** Editable account details: display name, profile photo and password. */
 @Composable
 fun AccountSettingsScreen(
     name: String,
-    email: String,
     busy: Boolean,
     error: String?,
     message: String?,
-    onSaveProfile: (name: String, email: String) -> Unit,
+    onSaveName: (name: String) -> Unit,
     onChangePassword: (password: String, confirmation: String) -> Unit,
     onDismissFeedback: () -> Unit,
     onBack: () -> Unit = {},
+    photo: ImageBitmap? = null,
+    photoBusy: Boolean = false,
+    photoError: String? = null,
+    onPhotoPicked: ((Uri) -> Unit)? = null,
+    onRemovePhoto: () -> Unit = {},
 ) {
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onPhotoPicked?.invoke(uri)
+    }
+    val pickPhoto = {
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
     var nameField by rememberSaveable(name) { mutableStateOf(name) }
-    var emailField by rememberSaveable(email) { mutableStateOf(email) }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmation by rememberSaveable { mutableStateOf("") }
 
     // Stale feedback from a previous screen visit should not follow the user in.
     LaunchedEffect(Unit) { onDismissFeedback() }
 
-    val profileChanged = nameField.trim() != name || emailField.trim() != email
+    val nameChanged = nameField.trim() != name
     val listState = rememberLazyListState()
 
     LazyColumn(
@@ -407,31 +373,71 @@ fun AccountSettingsScreen(
         modifier = Modifier.fillMaxSize().padding(20.dp).navigationBarsPadding().devWellScrollbar(listState),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { BackHeader("Account & profile", "Edit your name, email and password", onBack) }
+        item { BackHeader("Account & profile", "Edit your name, photo and password", onBack) }
         item {
             DevWellCard {
                 SectionLabel("Your details")
                 Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Avatar(
+                        nameField.ifBlank { "?" }.initials(),
+                        size = 64.dp,
+                        image = photo,
+                        modifier = if (onPhotoPicked != null && !photoBusy) {
+                            Modifier.clip(CircleShape).clickable(onClick = pickPhoto)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    Column {
+                        if (onPhotoPicked != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                TextButton(
+                                    onClick = pickPhoto,
+                                    enabled = !photoBusy,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                ) { Text(if (photo == null) "Add photo" else "Change photo") }
+                                if (photo != null) {
+                                    TextButton(
+                                        onClick = onRemovePhoto,
+                                        enabled = !photoBusy,
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    ) { Text("Remove") }
+                                }
+                                if (photoBusy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                        if (photoError != null) {
+                            Text(photoError, style = MaterialTheme.typography.bodySmall, color = RedText)
+                        } else {
+                            Text(
+                                "Shown next to your name across DevWell.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = InkMuted,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 DevWellTextField(nameField, { nameField = it }, label = "Full name")
-                Spacer(Modifier.height(10.dp))
-                DevWellTextField(
-                    emailField,
-                    { emailField = it },
-                    label = "Email address",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Your name is shared with your team. Changing your email sends a " +
-                        "confirmation link to the new address before it takes effect.",
+                    "Your name and photo are shared with your team.",
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                 )
                 Spacer(Modifier.height(14.dp))
                 DevWellButton(
                     "Save changes",
-                    onClick = { onSaveProfile(nameField.trim(), emailField.trim()) },
-                    enabled = !busy && profileChanged && nameField.isNotBlank() && emailField.isNotBlank(),
+                    onClick = { onSaveName(nameField.trim()) },
+                    enabled = !busy && nameChanged && nameField.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

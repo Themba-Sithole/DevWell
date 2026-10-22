@@ -91,13 +91,15 @@ role handling; only the rate limit stops them.
 
 Email delivery on the live project still uses Supabase's built-in mailer, which only
 delivers to addresses that belong to the project's team and is limited to 2 messages
-per hour. Signup confirmations, email changes (Account & profile -> Save changes) and
-password resets therefore fail for ordinary addresses with
-`email_address_not_authorized` or `over_email_send_rate_limit` until a custom SMTP
-provider is configured (Authentication -> SMTP) and the email rate limit is raised
-(Authentication -> Rate Limits). The Android app reports those two codes separately,
-but it cannot send the mail itself; the confirmation link is required before
-`auth.users.email` (and the profile row through `private.sync_profile_email`) changes.
+per hour. Signup confirmations and password resets therefore fail for ordinary
+addresses with `email_address_not_authorized` or `over_email_send_rate_limit` until a
+custom SMTP provider is configured (Authentication -> SMTP) and the email rate limit is
+raised (Authentication -> Rate Limits). The Android app reports those two codes
+separately, but it cannot send the mail itself.
+
+Account email changes are not offered in the app: the address is fixed after signup so
+one verified identity owns each account. `private.sync_profile_email()` still keeps
+`public."user".email` in step if an address is changed through the Auth admin API.
 
 The Android admin screen currently lists account identities and supports suspend /
 reactivate. Company/team CRUD and temporary credential creation are not wired into the

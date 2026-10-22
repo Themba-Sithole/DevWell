@@ -125,16 +125,6 @@ class SupabaseIdentityRepository(
         "Your name has been updated."
     }
 
-    override suspend fun updateEmail(email: String): String = accountLock.withLock {
-        val trimmed = email.trim()
-        val supabase = connection()
-        supabase.auth.awaitInitialization()
-        check(supabase.auth.currentSessionOrNull() != null) { "Please sign in again." }
-        // The profile row follows through the email sync trigger after confirmation.
-        supabase.auth.updateUser { this.email = trimmed }
-        "We sent a confirmation link to $trimmed. Your current email stays active until you open it."
-    }
-
     override suspend fun updatePassword(password: String): String = accountLock.withLock {
         val supabase = connection()
         supabase.auth.awaitInitialization()

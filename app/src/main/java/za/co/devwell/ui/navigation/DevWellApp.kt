@@ -357,10 +357,6 @@ private fun RoleApp(
                     name = user.name,
                     email = user.email,
                     photo = avatarPhoto,
-                    photoBusy = avatarStatus.busy,
-                    photoError = avatarStatus.error,
-                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
-                    onRemovePhoto = avatarViewModel::removePhoto,
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)
@@ -427,10 +423,6 @@ private fun RoleApp(
                     name = user.name,
                     email = user.email,
                     photo = avatarPhoto,
-                    photoBusy = avatarStatus.busy,
-                    photoError = avatarStatus.error,
-                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
-                    onRemovePhoto = avatarViewModel::removePhoto,
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)
@@ -471,10 +463,6 @@ private fun RoleApp(
                     name = user.name,
                     email = user.email,
                     photo = avatarPhoto,
-                    photoBusy = avatarStatus.busy,
-                    photoError = avatarStatus.error,
-                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
-                    onRemovePhoto = avatarViewModel::removePhoto,
                     prefs = notificationPrefs,
                     onToggleDaily = { enabled ->
                         val updated = notificationPrefs.copy(dailyEnabled = enabled)
@@ -528,14 +516,18 @@ private fun RoleApp(
             composable(Routes.ACCOUNT_SETTINGS) {
                 AccountSettingsScreen(
                     name = user.name,
-                    email = user.email,
                     busy = account.busy,
                     error = account.error,
                     message = account.message,
-                    onSaveProfile = authViewModel::updateProfileDetails,
+                    onSaveName = authViewModel::updateProfileName,
                     onChangePassword = authViewModel::updatePassword,
                     onDismissFeedback = authViewModel::clearFeedback,
                     onBack = { navController.popBackStack() },
+                    photo = avatarPhoto,
+                    photoBusy = avatarStatus.busy,
+                    photoError = avatarStatus.error,
+                    onPhotoPicked = { uri -> avatarViewModel.onPhotoPicked(notificationContext, uri) },
+                    onRemovePhoto = avatarViewModel::removePhoto,
                 )
             }
             composable(Routes.MANAGER_VISIBILITY) {
