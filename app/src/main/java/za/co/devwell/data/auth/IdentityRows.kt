@@ -42,3 +42,10 @@ data class TeamRow(
 ) {
     fun toTeam() = Team(id = id, companyId = companyId, name = name)
 }
+
+// Returned by the team_member_counts RPC: a headcount only, never names or ids of people.
+@Serializable
+data class TeamMemberCountRow(
+    @SerialName("team_id") val teamId: String,
+    @SerialName("member_count") val memberCount: Int,
+)

@@ -46,6 +46,29 @@ class SupabaseIdentityRepositoryTest {
         } finally { client.close() }
     }
 
+    @Test fun directoryShowsTeamMemberCounts() = runTest {
+        val client = client(directoryEngine(HttpStatusCode.OK, """[{"team_id":"t1","member_count":3}]"""))
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            assertTrue(repo.signIn("user@example.com", "password123").isSuccess)
+            repo.refreshDirectory()
+            assertEquals(listOf(3, 0), repo.teams.value.map { it.memberCount })
+        } finally { client.close() }
+    }
+
+    @Test fun directoryLoadsWhenMemberCountsAreUnavailable() = runTest {
+        // Before the migration is applied the live database answers with "function not found".
+        val client = client(directoryEngine(HttpStatusCode.NotFound,
+            """{"code":"PGRST202","message":"Could not find the function public.team_member_counts"}"""))
+        try {
+            val repo = SupabaseIdentityRepository(client, backgroundScope)
+            assertTrue(repo.signIn("user@example.com", "password123").isSuccess)
+            repo.refreshDirectory()
+            assertEquals(listOf("t1", "t2"), repo.teams.value.map { it.id })
+            assertEquals(listOf(0, 0), repo.teams.value.map { it.memberCount })
+        } finally { client.close() }
+    }
+
     @Test fun unknownServerRoleFailsClosed() = runTest {
         val engine = MockEngine { request ->
             respond(if (request.url.encodedPath == "/auth/v1/token") token else profile.replace("engineer", "owner"),
@@ -132,6 +155,18 @@ class SupabaseIdentityRepositoryTest {
             val message = repo.signUp("Student", "new@example.com", "password123", SignupRole.MANAGER)
             assertEquals("Check your email to confirm your account, then return here and sign in.", message)
         } finally { client.close() }
+    }
+
+    private fun directoryEngine(countStatus: HttpStatusCode, countBody: String) = MockEngine { request ->
+        val (status, body) = when (request.url.encodedPath) {
+            "/auth/v1/token" -> HttpStatusCode.OK to token
+            "/rest/v1/user" -> HttpStatusCode.OK to profile
+            "/rest/v1/company" -> HttpStatusCode.OK to """[{"id":"c1","name":"DevWell","status":"active"}]"""
+            "/rest/v1/team" -> HttpStatusCode.OK to """[{"id":"t1","name":"Mobile","company_id":"c1"},{"id":"t2","name":"Web","company_id":"c1"}]"""
+            "/rest/v1/rpc/team_member_counts" -> countStatus to countBody
+            else -> error("Unexpected request: ${request.url.encodedPath}")
+        }
+        respond(body, status, headersOf("Content-Type", "application/json"))
     }
 
     @Test fun updateEmailSaysWhereTheConfirmationLinkWent() = runTest {
