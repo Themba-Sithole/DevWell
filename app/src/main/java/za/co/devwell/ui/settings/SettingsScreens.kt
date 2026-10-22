@@ -52,6 +52,7 @@ import za.co.devwell.ui.auth.AuthFeedback
 import za.co.devwell.ui.components.*
 import za.co.devwell.ui.theme.*
 import android.net.Uri
+import java.time.LocalTime
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -504,8 +505,8 @@ fun NotificationsScreen(
     var checkIn by remember(prefs) { mutableStateOf(prefs.checkInReminders) }
     var teamAlerts by remember(prefs) { mutableStateOf(prefs.teamAlerts) }
     var tipNudges by remember(prefs) { mutableStateOf(prefs.tipNudges) }
-    var quietStart by remember(prefs) { mutableStateOf(prefs.quietStart.orEmpty()) }
-    var quietEnd by remember(prefs) { mutableStateOf(prefs.quietEnd.orEmpty()) }
+    var quietStart by remember(prefs) { mutableStateOf(prefs.quietStart ?: "21:00") }
+    var quietEnd by remember(prefs) { mutableStateOf(prefs.quietEnd ?: "07:00") }
     val listState = rememberLazyListState()
 
     LazyColumn(
@@ -515,9 +516,11 @@ fun NotificationsScreen(
     ) {
         item { BackHeader("Notification preferences", "Daily reminder, quiet hours and category controls", onBack) }
         item {
-            DevWellCard(padding = 4.dp) {
+            DevWellCard {
                 PrefRow("Check-in reminders", checkIn, { checkIn = it }, subtitle = "Remind me when I miss a day")
+                DevWellDivider(Modifier.padding(vertical = 8.dp))
                 PrefRow("Team alerts", teamAlerts, { teamAlerts = it }, subtitle = "Anonymous team milestone notices")
+                DevWellDivider(Modifier.padding(vertical = 8.dp))
                 PrefRow("Tip nudges", tipNudges, { tipNudges = it }, subtitle = "Weekly well-being tips")
             }
         }
@@ -530,10 +533,29 @@ fun NotificationsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                 )
-                Spacer(Modifier.height(12.dp))
-                DevWellTextField(quietStart, { quietStart = it }, label = "Quiet start (HH:mm)")
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DevWellTimeField(
+                        value = quietStart,
+                        onTimeSelected = { quietStart = it },
+                        modifier = Modifier.weight(1f),
+                        label = "From",
+                        fallback = LocalTime.of(21, 0),
+                    )
+                    DevWellTimeField(
+                        value = quietEnd,
+                        onTimeSelected = { quietEnd = it },
+                        modifier = Modifier.weight(1f),
+                        label = "Until",
+                        fallback = LocalTime.of(7, 0),
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
-                DevWellTextField(quietEnd, { quietEnd = it }, label = "Quiet end (HH:mm)")
+                Text(
+                    "Quiet hours can cross midnight, for example 21:00 until 07:00.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                )
             }
         }
         item {

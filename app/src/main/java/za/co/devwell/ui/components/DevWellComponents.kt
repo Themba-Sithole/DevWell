@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ import za.co.devwell.model.ProjectDeadlineParser
 import za.co.devwell.ui.theme.*
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneOffset
 import kotlin.math.PI
 import kotlin.math.cos
@@ -624,6 +626,92 @@ fun DevWellDateField(
                     selectedDayContainerColor = DevGreen,
                     todayContentColor = DevGreen,
                     todayDateBorderColor = DevGreen,
+                ),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DevWellTimeField(
+    value: String,
+    onTimeSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    placeholder: String = "Select a time",
+    enabled: Boolean = true,
+    fallback: LocalTime = LocalTime.of(9, 0),
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val parsed = remember(value) { runCatching { LocalTime.parse(value) }.getOrNull() }
+
+    Box(modifier) {
+        DevWellTextField(
+            value = value,
+            onValueChange = {},
+            label = label,
+            placeholder = placeholder,
+            enabled = enabled,
+            readOnly = true,
+            trailingIcon = {
+                Icon(Icons.Outlined.Schedule, contentDescription = "Pick time", tint = DevGreen)
+            },
+        )
+        Box(
+            Modifier
+                .matchParentSize()
+                .clickable(enabled = enabled) { showPicker = true },
+        )
+    }
+
+    if (showPicker) {
+        val initial = parsed ?: fallback
+        val state = rememberTimePickerState(
+            initialHour = initial.hour,
+            initialMinute = initial.minute,
+            is24Hour = true,
+        )
+        DevWellDialogCard(
+            onDismiss = { showPicker = false },
+            title = "Select time",
+            icon = Icons.Outlined.Schedule,
+            footer = {
+                DevWellButton(
+                    text = "Cancel",
+                    onClick = { showPicker = false },
+                    modifier = Modifier.weight(1f),
+                    variant = ButtonVariant.Outline,
+                    height = 46.dp,
+                )
+                DevWellButton(
+                    text = "Select",
+                    onClick = {
+                        onTimeSelected("%02d:%02d".format(state.hour, state.minute))
+                        showPicker = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    height = 46.dp,
+                )
+            },
+        ) {
+            TimePicker(
+                state = state,
+                colors = TimePickerDefaults.colors(
+                    clockDialColor = SurfaceMuted,
+                    clockDialSelectedContentColor = Color.White,
+                    clockDialUnselectedContentColor = Ink,
+                    selectorColor = DevGreen,
+                    containerColor = Color.Transparent,
+                    periodSelectorBorderColor = BorderGreen,
+                    periodSelectorSelectedContainerColor = AccentSurface,
+                    periodSelectorUnselectedContainerColor = SurfaceMuted,
+                    periodSelectorSelectedContentColor = DevGreen,
+                    periodSelectorUnselectedContentColor = InkMuted,
+                    timeSelectorSelectedContainerColor = AccentSurface,
+                    timeSelectorUnselectedContainerColor = SurfaceMuted,
+                    timeSelectorSelectedContentColor = DevGreen,
+                    timeSelectorUnselectedContentColor = Ink,
                 ),
             )
         }
