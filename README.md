@@ -12,7 +12,7 @@ engineers, managers and platform admins.
 
 ## Demo video
 
-A narrated walkthrough of the app, covering the engineer, manager and administrator features (about 14 minutes): [Watch the demo video](docs/demo/DevWell_Demo.mp4)
+A narrated walkthrough of the app, covering the engineer, manager and administrator features (about 14 minutes): [Open the demo video file](docs/demo/DevWell_Demo.mp4). GitHub cannot preview files this large, so on the file page use Download (or Raw) to watch it.
 
 ## Demo accounts
 
