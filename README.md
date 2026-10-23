@@ -10,6 +10,10 @@ engineers, managers and platform admins.
 
 ![DevWell Get Started screen](docs/screenshots/get-started.png)
 
+## Demo video
+
+A narrated walkthrough of the app, covering the engineer, manager and administrator features (about 14 minutes): [Watch the demo video](docs/demo/DevWell_Demo.mp4)
+
 ## Demo accounts
 
 You can sign in with these existing test accounts:
