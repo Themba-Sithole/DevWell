@@ -59,10 +59,7 @@ and when Refresh status is tapped. The directory is intentionally empty until re
 company/team names are available. No invented manager/admin accounts were left behind.
 
 The Android app now uses `SupabaseManagerRepository` for manager approvals and team
-settings. Check-ins and projects also have Supabase repositories. Notification
-preferences still use `MockNotificationRepository`, despite a live
-`notification_preference` table; the Android setting does not persist across app
-restarts yet.
+settings. Check-ins and projects also have Supabase repositories. Notification preferences use `SupabaseNotificationRepository`: a change is saved on the device first and then synced to the `notification_preference` table, and preferences reload from the account at sign-in.
 
 ## Admin dashboard and production schema state
 
