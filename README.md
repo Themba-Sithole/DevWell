@@ -8,7 +8,7 @@ seeing an individual's answers.
 It's a Kotlin and Jetpack Compose app backed by Supabase, with separate experiences for
 engineers, managers and platform admins.
 
-![DevWell sign-in screen](docs/screenshots/login.png)
+![DevWell Get Started screen](docs/screenshots/get-started.png)
 
 ## Demo accounts
 
